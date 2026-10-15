@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
+  <meta name="theme-color" content="#7A0B0B">
+  <meta name="description" content="UPEPINO: radar de la ejecución presupuestal del Sector Educación por departamento, pliego y unidad ejecutora.">
+  <title>UPEPINO · Radar presupuestal de Educación</title>
+  <link rel="icon" href="upepino-cara.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="barra">
+    <a class="marca" href="#/">
+      <img src="upepino-cara.svg" alt="">
+      <span>UPEPINO<small>Radar presupuestal · Sector Educación</small></span>
+    </a>
+    <span class="sep"></span>
+    <button id="chip-region" class="chip-region" type="button" title="Cambiar departamento">📍 <span>Todo el Perú</span></button>
+    <button class="btn-hamb" id="btn-hamb" type="button" aria-label="Menú">☰</button>
+    <nav class="menu-links" id="menu-links">
+      <a href="#/" data-r="inicio">Inicio</a>
+      <a href="#/resumen" data-r="resumen">Resumen general</a>
+      <a href="#/pliegos" data-r="pliegos">Pliegos y UE</a>
+      <a href="#/alertas" data-r="alertas">Alertas de seguimiento</a>
+    </nav>
+  </header>
+
+  <main id="vista"></main>
+
+  <footer>
+    Fuente: Sistema Integrado de Administración Financiera (SIAF-SP), Ministerio de Economía y Finanzas · Sector 10 Educación
+    <br><span id="pie-corte"></span> · <b>UPEPINO</b>, tu guía del presupuesto educativo
+  </footer>
+
+  <!-- UPEPINO: botón flotante y chat -->
+  <button class="fab" id="fab" type="button" aria-label="Conversar con UPEPINO"><img src="upepino-cara.svg" alt=""></button>
+  <section class="chat" id="chat" hidden aria-label="Chat con UPEPINO">
+    <div class="chat-cab">
+      <img src="upepino-cara.svg" alt="">
+      <div><b>UPEPINO</b><small id="chat-region">Pregúntame por tu región</small></div>
+      <button id="chat-cerrar" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <form class="chat-pie" id="chat-form">
+      <input id="chat-txt" placeholder="Escribe tu pregunta…" autocomplete="off">
+      <button type="submit" aria-label="Enviar">➤</button>
+    </form>
+  </section>
+
+  <!-- UPEPINO: bienvenida y elección de departamento -->
+  <dialog class="bienvenida" id="dlg-region">
+    <button class="cerrar-x" id="dlg-cerrar" type="button" aria-label="Cerrar">✕</button>
+    <img src="upepino.svg" alt="UPEPINO">
+    <h2>¡Hola! Soy UPEPINO 🥒</h2>
+    <p>Para mostrarte la información más relevante para ti, cuéntame: <b>¿cuál es tu departamento?</b>
+      Así, cada vez que entres a un panel, te lo mostraré filtrado automáticamente.</p>
+    <select id="dlg-sel"></select>
+    <button class="btn-prim" id="dlg-aplicar" type="button">Aplicar mi departamento</button>
+    <button class="btn-link" id="dlg-todo" type="button">Prefiero ver todo el Perú</button>
+  </dialog>
+
+  <div id="guia" class="guia" hidden><img src="upepino.svg" alt=""><div class="globo" id="guia-txt"></div></div>
+  <div id="aviso" class="aviso" hidden><img src="upepino.svg" alt=""><div id="aviso-txt"></div></div>
+  <div id="tip" class="tip" hidden></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

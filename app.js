@@ -259,9 +259,10 @@ async function vInicio() {
   <section class="heroe"><div class="heroe-grid">
     <div>
       <div class="eyebrow">Sector Educación · Radar presupuestal</div>
-      <h1>Conoce, en tiempo real, <em>cómo avanza el presupuesto educativo de tu región</em></h1>
+      <h1>Conoce <em>cómo avanza el presupuesto educativo de tu región</em></h1>
+      <div class="sello-corte">📅 Información del SIAF con corte al <b>${fecha(estado.cortes[estado.anio]?.corte)}</b> · se actualiza cada día hábil</div>
       <p class="lead">Un vistazo claro al avance financiero del Sector 10: cuánto se asignó, cuánto se comprometió y cuánto
-        se ejecutó, por departamento, pliego y unidad ejecutora. Datos del SIAF al ${fecha(estado.cortes[estado.anio]?.corte)}.</p>
+        se ejecutó, por departamento, pliego y unidad ejecutora.</p>
       <div class="lema"><img src="upepino-cara.svg" alt="">UPEPINO</div>
       <div class="contadores">
         <div><b>${nombreRegion() === "Todo el Perú" ? 25 : 1}</b><span>Departamento${estado.region ? "" : "s"}</span></div>
@@ -271,7 +272,7 @@ async function vInicio() {
     </div>
     <div class="mascota">
       <div class="globo"><b>¡Hola, soy UPEPINO! 🥒</b><br>Te acompaño a descubrir cómo avanza el presupuesto de educación en
-        ${estado.region ? "<b>" + esc(nombreRegion()) + "</b>" : "tu región"}, mes a mes.</div>
+        ${estado.region ? "<b>" + esc(nombreRegion()) + "</b>" : "tu región"}, con la última información disponible.</div>
       <img src="upepino.svg" alt="UPEPINO, el pepino del presupuesto">
     </div>
   </div></section>

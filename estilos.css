@@ -227,3 +227,6 @@ dialog.bienvenida select { width: 100%; padding: 12px; border: 1px solid var(--b
 }
 .mascota .globo { position: relative; top: 0; left: 0; display: inline-block; margin: 0 auto 4px; }
 .mascota .globo::after { display: block; right: auto; left: 50%; transform: translateX(-50%); }
+.sello-corte { display: inline-block; margin: 0 0 14px; padding: 7px 14px; border-radius: 99px; background: rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.25); font-size: .86rem; color: #FBEDE8; }
+.sello-corte b { color: var(--dorado); }

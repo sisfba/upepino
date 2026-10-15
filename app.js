@@ -1,4 +1,4 @@
-/* UPEPINO — Radar presupuestal del Sector Educación.
+/* UPEPINO — Radar presupuestal de Educación (Sector Educación, Gobiernos Regionales y Gobiernos Locales).
    Lee los datos públicos de Supabase (funciones pub_cortes y pub_datos) y arma los paneles en el navegador. */
 "use strict";
 
@@ -17,10 +17,13 @@ const DEPARTAMENTOS = {
   "13": "La Libertad", "14": "Lambayeque", "15": "Lima", "16": "Loreto", "17": "Madre de Dios", "18": "Moquegua",
   "19": "Pasco", "20": "Piura", "21": "Puno", "22": "San Martín", "23": "Tacna", "24": "Tumbes", "25": "Ucayali",
 };
+const NIVELES = { "": "Todos los niveles de gobierno", GN: "Sector Educación (Gobierno Nacional)", GR: "Gobiernos Regionales", GL: "Gobiernos Locales" };
+const NIVEL_CORTO = { "": "Todos", GN: "Sector Educación", GR: "Gob. Regionales", GL: "Gob. Locales" };
 const COLORES_ANIO = ["#D9A93A", "#7A6F69", "#A30F14"];
 
 const estado = {
   anios: [], cortes: {}, anio: null, region: leer("upepino_region") ?? null,
+  nivel: ["GN", "GR", "GL"].includes(leer("upepino_nivel")) ? leer("upepino_nivel") : "",
   datos: new Map(), geo: null, graficos: [], grupo: "", pliegoSel: null,
 };
 
@@ -49,10 +52,32 @@ async function rpc(fn, args = {}) {
   return r.json();
 }
 
-async function datos(anio) {
-  if (!estado.datos.has(anio)) estado.datos.set(anio, rpc("pub_datos", { p_anio: anio }));
-  return estado.datos.get(anio);
+// Gobiernos Locales: todas las municipalidades vienen en el pliego "000"; se agrupan por departamento
+// ("Municipalidades de Cusco") para que el panel de pliegos tenga sentido.
+function prepararFila(f) {
+  if (f.n === "GL") { f.p = "GL" + f.d; f.pn = "Municipalidades de " + (DEPARTAMENTOS[f.d] || "otros lugares"); }
+  return f;
 }
+async function datos(anio, nivel = estado.nivel) {
+  const clave = anio + "|" + nivel;
+  if (!estado.datos.has(clave)) {
+    const p = rpc("pub_datos", { p_anio: anio, p_nivel: nivel || null }).then((fs) => fs.map(prepararFila));
+    p.catch(() => estado.datos.delete(clave));
+    estado.datos.set(clave, p);
+  }
+  return estado.datos.get(clave);
+}
+// fecha de corte del año para el nivel elegido (en "Todos", la de cada nivel si no coinciden)
+function cortesDe(anio = estado.anio, nivel = estado.nivel) {
+  return (nivel ? [nivel] : ["GN", "GR", "GL"]).map((n) => estado.cortes[anio + "|" + n]).filter(Boolean);
+}
+function textoCorte(anio = estado.anio, nivel = estado.nivel) {
+  const cs = cortesDe(anio, nivel);
+  if (!cs.length) return "sin datos";
+  if (new Set(cs.map((c) => c.corte)).size === 1) return fecha(cs[0].corte);
+  return cs.map((c) => `${NIVEL_CORTO[c.nivel]} ${fecha(c.corte)}`).join(" · ");
+}
+const ultimoCorte = (anio = estado.anio) => cortesDe(anio).map((c) => c.corte).sort().pop();
 const enRegion = (filas, region = estado.region) => (region ? filas.filter((f) => f.d === region) : filas);
 
 function sumar(filas) {
@@ -88,6 +113,18 @@ function aplicarRegion(r, avisar = true) {
   enrutar();
 }
 
+// nivel de gobierno: "" todos, GN Sector Educación, GR Gobiernos Regionales, GL Gobiernos Locales
+function aplicarNivel(n, avisar = true) {
+  estado.nivel = n || "";
+  guardar("upepino_nivel", estado.nivel);
+  estado.grupo = ""; estado.pliegoSel = null;
+  $("#chip-nivel").value = estado.nivel;
+  if (avisar) mostrarAviso("¡Listo, soy UPEPINO!", `Ahora estás viendo: ${NIVELES[estado.nivel]}`);
+  enrutar(false);
+}
+$("#chip-nivel").addEventListener("change", (e) => aplicarNivel(e.target.value));
+const opcionesNivel = () => Object.entries(NIVELES).map(([k, v]) => `<option value="${k}" ${k === estado.nivel ? "selected" : ""}>${v}</option>`).join("");
+
 function opcionesRegion(sel, valor) {
   sel.innerHTML = `<option value="">Todos los departamentos (nacional)</option>` +
     Object.entries(DEPARTAMENTOS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
@@ -120,7 +157,7 @@ function guia(html) {
 $("#btn-hamb").addEventListener("click", () => $("#menu-links").classList.toggle("abierto"));
 window.addEventListener("hashchange", enrutar);
 
-async function enrutar() {
+async function enrutar(arriba = true) {
   const ruta = (location.hash.replace(/^#\/?/, "") || "inicio").split("/")[0];
   $$("#menu-links a").forEach((a) => a.classList.toggle("activo", a.dataset.r === ruta));
   $("#menu-links").classList.remove("abierto");
@@ -131,15 +168,15 @@ async function enrutar() {
   } catch (e) {
     $("#vista").innerHTML = `<div class="cont"><p class="vacio">😕 ${esc(e.message)}<br>Intenta recargar la página.</p></div>`;
   }
-  window.scrollTo({ top: 0 });
+  if (arriba !== false) window.scrollTo({ top: 0 });
 }
 
 function cabecera(titulo, icono, migas) {
-  const c = estado.cortes[estado.anio];
   return `<div class="migas"><a href="#/">Inicio</a> › ${esc(migas)}</div>
     <div class="tit-panel"><div class="ico">${icono}</div><h1>${esc(titulo)}</h1>
-    <span class="corte">🗓️ Corte: ${fecha(c?.corte)}</span></div>
+    <span class="corte">🗓️ Corte: ${textoCorte()}</span></div>
     <div class="filtros">
+      <select id="f-nivel" class="sel sel-nivel" aria-label="Nivel de gobierno">${opcionesNivel()}</select>
       <select id="f-anio" class="sel" aria-label="Año">${estado.anios.map((a) => `<option ${a === estado.anio ? "selected" : ""}>${a}</option>`).join("")}</select>
       <select id="f-region" class="sel" aria-label="Departamento"></select>
     </div>`;
@@ -147,8 +184,11 @@ function cabecera(titulo, icono, migas) {
 function conectarFiltros() {
   opcionesRegion($("#f-region"), estado.region);
   $("#f-region").addEventListener("change", (e) => aplicarRegion(e.target.value));
-  $("#f-anio").addEventListener("change", (e) => { estado.anio = +e.target.value; enrutar(); });
+  $("#f-anio").addEventListener("change", (e) => { estado.anio = +e.target.value; enrutar(false); });
+  $("#f-nivel").addEventListener("change", (e) => aplicarNivel(e.target.value));
 }
+// texto corto para títulos: "Gobiernos Regionales", "Sector Educación"…
+const quienNivel = () => (estado.nivel ? NIVEL_CORTO[estado.nivel].replace("Gob.", "Gobiernos") : "Educación (todos los niveles)");
 
 function kpis(t) {
   const av = div(t.dev, t.pim);
@@ -254,19 +294,26 @@ async function dibujarMapa(cont, porDep, medida) {
 async function vInicio() {
   const filas = enRegion(await datos(estado.anio));
   const t = sumar(filas);
-  const nPl = new Set(filas.map((f) => f.p)).size, nUe = new Set(filas.map((f) => f.u)).size;
+  const nUe = (n) => new Set(filas.filter((f) => !n || f.n === n).map((f) => f.u)).size;
+  const cont = (v, t) => `<div><b>${v.toLocaleString("en-US")}</b><span>${t}</span></div>`;
+  const contadores = estado.nivel === "GL" ? cont(nUe(), "Municipalidades")
+    : estado.nivel === "GR" ? cont(new Set(filas.map((f) => f.p)).size, "Gobiernos regionales") + cont(nUe(), "Unidades ejecutoras")
+    : estado.nivel === "GN" ? cont(new Set(filas.map((f) => f.p)).size, "Pliegos") + cont(nUe(), "Unidades ejecutoras")
+    : cont(nUe("GN") + nUe("GR"), "Unidades ejecutoras") + cont(nUe("GL"), "Municipalidades");
   $("#vista").innerHTML = `
   <section class="heroe"><div class="heroe-grid">
     <div>
-      <div class="eyebrow">Sector Educación · Radar presupuestal</div>
+      <div class="eyebrow">Educación · Radar presupuestal</div>
       <h1>Conoce <em>cómo avanza el presupuesto educativo de tu región</em></h1>
-      <div class="sello-corte">📅 Información del SIAF con corte al <b>${fecha(estado.cortes[estado.anio]?.corte)}</b> · se actualiza cada día hábil</div>
-      <p class="lead">Un vistazo claro al avance financiero del Sector 10: cuánto se asignó, cuánto se comprometió y cuánto
-        se ejecutó, por departamento, pliego y unidad ejecutora.</p>
+      <div class="sello-corte">📅 Información del SIAF con corte al <b>${textoCorte()}</b> · se actualiza cada día hábil</div>
+      <p class="lead">Un vistazo claro al avance financiero de la educación pública: cuánto se asignó, cuánto se comprometió y
+        cuánto se ejecutó en el Sector Educación, los Gobiernos Regionales y los Gobiernos Locales, por departamento,
+        pliego y unidad ejecutora.</p>
+      <div class="niveles"><span>Nivel de gobierno</span>${segmentado("s-nivel", Object.entries(NIVEL_CORTO), estado.nivel)}</div>
       <div class="lema"><img src="upepino-cara.svg" alt="">UPEPINO</div>
       <div class="contadores">
         <div><b>${nombreRegion() === "Todo el Perú" ? 25 : 1}</b><span>Departamento${estado.region ? "" : "s"}</span></div>
-        <div><b>${nPl}</b><span>Pliegos</span></div><div><b>${nUe}</b><span>Unidades ejecutoras</span></div>
+        ${contadores}
         <div><b>${pct(div(t.dev, t.pim))}</b><span>Avance ${estado.anio}</span></div>
       </div>
     </div>
@@ -278,9 +325,10 @@ async function vInicio() {
   </div></section>
   <div class="cont"><div class="tarjetas-panel">
     ${tarjeta("#/resumen", "📊", "Resumen general", "Ejecución consolidada: PIA, PIM, certificado, devengado y girado; mapa por departamento, ranking y evolución mensual.")}
-    ${tarjeta("#/pliegos", "🏛️", "Pliegos y UE", "Avance por pliego (MINEDU, universidades y organismos) y por cada una de sus unidades ejecutoras.")}
+    ${tarjeta("#/pliegos", "🏛️", "Pliegos y UE", "Avance por pliego (MINEDU, universidades, gobiernos regionales y municipalidades) y por cada una de sus unidades ejecutoras.")}
     ${tarjeta("#/alertas", "🔔", "Alertas de seguimiento", "Unidades ejecutoras y genéricas con bajo avance según el semáforo: ≥ 80 % verde, 70–79 % ámbar, < 70 % rojo.")}
   </div></div>`;
+  alSegmento("s-nivel", (v) => aplicarNivel(v));
 }
 const tarjeta = (href, ico, t, d) => `<a class="tp" href="${href}"><div class="ico">${ico}</div><h3>${t}</h3><p>${d}</p><span class="ir">Ver panel →</span></a>`;
 
@@ -290,7 +338,7 @@ async function vResumen() {
   const filas = enRegion(todas);
   const t = sumar(filas);
   $("#vista").innerHTML = `<div class="cont">
-    ${cabecera(`Resumen general — ${estado.region ? nombreRegion() : "ejecución nacional del Sector Educación"}`, "📊", "Resumen general")}
+    ${cabecera(`Resumen general — ${quienNivel()}${estado.region ? " en " + nombreRegion() : ", a nivel nacional"}`, "📊", "Resumen general")}
     ${filas.length ? kpis(t) : `<p class="vacio">No hay presupuesto registrado para ${esc(nombreRegion())} en ${estado.anio}.</p>`}
     <div class="dos">
       <div class="caja"><div class="caja-cab"><h2>🗺️ ${"Por departamento"}</h2>
@@ -327,13 +375,14 @@ async function vResumen() {
 
   await curva($("#g-curva"));
   guia(`<b>¡Hola, soy UPEPINO! 🥒</b><br>Estás en el <b>Resumen general</b>: aquí ves la ejecución consolidada
-    ${estado.region ? "de <b>" + esc(nombreRegion()) + "</b>" : "a nivel nacional"}. Toca el mapa para cambiar de departamento.`);
+    ${estado.region ? "de <b>" + esc(nombreRegion()) + "</b>" : "a nivel nacional"} para <b>${esc(NIVELES[estado.nivel].toLowerCase())}</b>.
+    Toca el mapa para cambiar de departamento.`);
 }
 
 async function curva(canvas) {
   const anios = estado.anios.filter((a) => a <= estado.anio).slice(0, 3).reverse();
   const series = await Promise.all(anios.map(async (a) => ({ a, t: sumar(enRegion(await datos(a))) })));
-  const corte = estado.cortes[estado.anio]?.corte;
+  const corte = ultimoCorte();
   const mesCorte = corte ? +corte.slice(5, 7) : 12;
   estado.graficos.push(new Chart(canvas, {
     type: "line",
@@ -357,13 +406,15 @@ async function curva(canvas) {
 async function vPliegos() {
   cargando();
   let filas = enRegion(await datos(estado.anio));
+  if (estado.nivel !== "GN") estado.grupo = "";
   const filtroGrupo = (f) => (estado.grupo === "U" ? f.p.startsWith("5") : estado.grupo === "M" ? !f.p.startsWith("5") : true);
   filas = filas.filter(filtroGrupo);
   const pls = agrupar(filas, "p", (f) => f.pn).filter((x) => x.pim > 0.5).sort((a, b) => b.pim - a.pim);
   const sel = pls.find((x) => x.k === estado.pliegoSel);
   $("#vista").innerHTML = `<div class="cont">
-    ${cabecera("Pliegos y unidades ejecutoras" + (estado.region ? ` — ${nombreRegion()}` : ""), "🏛️", "Pliegos y UE")}
-    ${segmentado("s-grupo", [["", "Todos los pliegos"], ["U", "Universidades"], ["M", "MINEDU y organismos"]], estado.grupo)}
+    ${cabecera("Pliegos y unidades ejecutoras — " + quienNivel() + (estado.region ? ` en ${nombreRegion()}` : ""), "🏛️", "Pliegos y UE")}
+    ${estado.nivel === "GN" ? segmentado("s-grupo", [["", "Todos los pliegos"], ["U", "Universidades"], ["M", "MINEDU y organismos"]], estado.grupo) : ""}
+    ${estado.nivel === "GL" || estado.nivel === "" ? `<p class="nota">En Gobiernos Locales, cada municipalidad es una unidad ejecutora; se agrupan por departamento como “Municipalidades de …”.</p>` : ""}
     ${kpis(sumar(filas))}
     <div class="dos">
       <div class="caja"><div class="caja-cab"><h2>🏛️ Pliegos por PIM</h2></div><div id="t-pl"></div></div>
@@ -372,10 +423,10 @@ async function vPliegos() {
     <div class="caja" id="caja-ue"><div class="caja-cab"><h2>🏫 ${sel ? "Unidades ejecutoras de " + esc(sel.n) : "Elija un pliego para ver sus unidades ejecutoras"}</h2></div><div id="t-ue"></div></div>
   </div>`;
   conectarFiltros();
-  alSegmento("s-grupo", (v) => { estado.grupo = v; estado.pliegoSel = null; enrutar(); });
+  if (estado.nivel === "GN") alSegmento("s-grupo", (v) => { estado.grupo = v; estado.pliegoSel = null; enrutar(false); });
   const total = { n: "TOTAL", ...sumar(filas) };
   const tp = tabla([
-    { t: "Pliego", k: "n", f: (f) => (f.k === estado.pliegoSel ? "👉 " : "") + esc((f.k !== undefined ? f.k + " " : "") + f.n) },
+    { t: "Pliego", k: "n", f: (f) => (f.k === estado.pliegoSel ? "👉 " : "") + esc((f.k !== undefined && !String(f.k).startsWith("GL") ? f.k + " " : "") + f.n) },
     { t: "PIM", k: "pim", num: true, f: (f) => mill(f.pim) },
     { t: "Devengado", k: "dev", num: true, f: (f) => mill(f.dev) },
     colAvance,
@@ -387,7 +438,7 @@ async function vPliegos() {
     $("#b-pl").innerHTML = barras(agrupar(sel.filas, "g", (f) => nombreGen(f.g)).filter((x) => x.pim > 0.5).sort((a, b) => a.k.localeCompare(b.k)), "pim");
     const ues = agrupar(sel.filas, "u", (f) => f.un).sort((a, b) => b.pim - a.pim);
     const tu = tabla([
-      { t: "Unidad ejecutora", k: "n" },
+      { t: sel.k.startsWith("GL") ? "Municipalidad" : "Unidad ejecutora", k: "n" },
       { t: "PIM", k: "pim", num: true, f: (f) => mill(f.pim) },
       { t: "Certificado", k: "cer", num: true, f: (f) => mill(f.cer) },
       { t: "Devengado", k: "dev", num: true, f: (f) => mill(f.dev) },
@@ -419,7 +470,7 @@ async function vAlertas() {
   }
   crit.sort((a, b) => b.pend - a.pend);
   $("#vista").innerHTML = `<div class="cont">
-    ${cabecera("Alertas de seguimiento" + (estado.region ? ` — ${nombreRegion()}` : ""), "🔔", "Alertas de seguimiento")}
+    ${cabecera("Alertas de seguimiento — " + quienNivel() + (estado.region ? ` en ${nombreRegion()}` : ""), "🔔", "Alertas de seguimiento")}
     <div class="alerta-k">
       <div class="ak r"><b>${rojos.length}</b><span>Unidades ejecutoras en rojo (avance &lt; 70 %)</span></div>
       <div class="ak a"><b>${ambar.length}</b><span>En ámbar (70 % – 79 %)</span></div>
@@ -461,7 +512,9 @@ async function vAlertas() {
 }
 
 // ------------------------------------------------------------------ chat de UPEPINO
-const chat = { region: null, iniciado: false };
+const chat = { region: null, nivel: null, iniciado: false };
+const nivelChat = () => (chat.nivel !== null ? chat.nivel : estado.nivel);
+const etqNivelChat = () => (nivelChat() ? ` · ${NIVEL_CORTO[nivelChat()]}` : "");
 const MEDIDAS = [
   ["pia", "PIA", ["pia", "apertura"]], ["pim", "PIM", ["pim", "modificado", "presupuesto"]],
   ["cer", "Certificado", ["certific"]], ["com", "Compromiso", ["compromis", "comprometid"]],
@@ -496,7 +549,12 @@ function menuPrincipal() {
     ["🏛️ Buscar pliego o unidad ejecutora", () => responder(() => burbuja("Escríbeme el nombre o parte del nombre, por ejemplo: <b>UGEL Cusco</b>, <b>San Marcos</b> o <b>Pronabec</b>."))],
     ["🔔 Alertas de mi región", () => responder(alertasChat)],
     ["📊 ¿Cómo vamos?", () => responder(() => medidaChat("av"))],
+    ["🏛️ Nivel de gobierno", elegirNivelChat],
   ]);
+}
+function elegirNivelChat() {
+  burbuja(`¿Qué nivel de gobierno quieres consultar? Ahora estoy en <b>${esc(NIVELES[nivelChat()])}</b>.`);
+  chips(Object.entries(NIVELES).map(([k, v]) => [v, () => { chat.nivel = k; responder(resumenRegionChat); }]));
 }
 function elegirDepartamento() {
   const d = burbuja(`¿Qué departamento deseas consultar?<br><select class="sel" style="width:100%;margin-top:8px"></select>
@@ -509,10 +567,11 @@ function elegirDepartamento() {
   });
 }
 const regionChat = () => (chat.region !== null ? chat.region : estado.region || "");
+const datosChat = (anio = estado.anio) => datos(anio, nivelChat());
 
 async function resumenRegionChat() {
-  const r = regionChat(); const t = sumar(enRegion(await datos(estado.anio), r));
-  burbuja(`📍 <b>${esc(nombreRegion(r))}</b> · ${estado.anio}\nPIM: <b>${soles(t.pim)}</b>\nDevengado: <b>${soles(t.dev)}</b> (${pct(div(t.dev, t.pim))})\nPendiente: ${soles(t.pim - t.dev)}`);
+  const r = regionChat(); const t = sumar(enRegion(await datosChat(), r));
+  burbuja(`📍 <b>${esc(nombreRegion(r))}</b> · ${estado.anio}${etqNivelChat()}\nPIM: <b>${soles(t.pim)}</b>\nDevengado: <b>${soles(t.dev)}</b> (${pct(div(t.dev, t.pim))})\nPendiente: ${soles(t.pim - t.dev)}`);
   chipsMedidas();
 }
 function chipsMedidas() {
@@ -521,12 +580,17 @@ function chipsMedidas() {
   chips([
     ...MEDIDAS.map(([k, t]) => [t, () => responder(() => medidaChat(k))]),
     ["🏆 Ranking de UE", () => responder(rankingChat)],
-    ...(r !== (estado.region || "") ? [["✅ Aplicar en todo el sitio", () => { aplicarRegion(r); burbuja("¡Hecho! Todos los paneles ya muestran " + esc(nombreRegion(r)) + "."); }, "pri"]] : []),
+    ...(r !== (estado.region || "") || nivelChat() !== estado.nivel ? [["✅ Aplicar en todo el sitio", () => {
+      const n = nivelChat(); chat.nivel = null;
+      if (n !== estado.nivel) { estado.nivel = n; guardar("upepino_nivel", n); $("#chip-nivel").value = n; }
+      aplicarRegion(r);
+      burbuja("¡Hecho! Todos los paneles ya muestran " + esc(nombreRegion(r)) + " · " + esc(NIVELES[n]) + ".");
+    }, "pri"]] : []),
     ["⇄ Volver al menú", menuPrincipal, "sec"],
   ]);
 }
 async function medidaChat(k, anio = estado.anio, filtro = null) {
-  const r = regionChat(); const todas = await datos(anio);
+  const r = regionChat(); const todas = await datosChat(anio);
   const filas = filtro ? todas.filter(filtro.fn) : enRegion(todas, r);
   const quien = filtro ? filtro.nombre : nombreRegion(r);
   const t = sumar(filas);
@@ -540,25 +604,26 @@ async function medidaChat(k, anio = estado.anio, filtro = null) {
   if (k === "cer" || k === "com") extra = `\nEquivale al ${pct(div(t[k], t.pim))} del PIM.`;
   const sujeto = k === "av" ? "El avance de ejecución (devengado / PIM)" : `El ${["pia", "pim"].includes(k) ? etq[k] : etq[k].toLowerCase()}`;
   const de = /^el /i.test(quien) ? "del " + quien.slice(3) : "de " + quien;
-  burbuja(`${sujeto} ${esc(de).replace(/^(del?) (.*)$/, "$1 <b>$2</b>")} en ${anio} es <b>${val}</b>.${extra}`);
+  const ambito = filtro ? "" : nivelChat() ? ` (${NIVELES[nivelChat()].replace(/ \(.*\)/, "")})` : " (todos los niveles de gobierno)";
+  burbuja(`${sujeto} ${esc(de).replace(/^(del?) (.*)$/, "$1 <b>$2</b>")}${ambito} en ${anio} es <b>${val}</b>.${extra}`);
   chipsMedidas();
 }
 async function rankingChat() {
-  const r = regionChat(); const ues = agrupar(enRegion(await datos(estado.anio), r), "u", (f) => f.un).filter((x) => x.pim >= 1e6);
+  const r = regionChat(); const ues = agrupar(enRegion(await datosChat(), r), "u", (f) => f.un).filter((x) => x.pim >= 1e6);
   ues.sort((a, b) => div(a.dev, a.pim) - div(b.dev, b.pim));
   const peor = ues.slice(0, 5).map((x, i) => `${i + 1}. ${esc(x.n)} — ${pct(div(x.dev, x.pim))}`).join("\n");
   const mejor = ues.slice(-3).reverse().map((x, i) => `${i + 1}. ${esc(x.n)} — ${pct(div(x.dev, x.pim))}`).join("\n");
-  burbuja(`📉 <b>Menor avance</b> en ${esc(nombreRegion(r))}:\n${peor}\n\n📈 <b>Mayor avance</b>:\n${mejor}\n<a class="btn-ir" href="#/alertas">Ver alertas →</a>`);
+  burbuja(`📉 <b>Menor avance</b> en ${esc(nombreRegion(r))}${etqNivelChat()}:\n${peor}\n\n📈 <b>Mayor avance</b>:\n${mejor}\n<a class="btn-ir" href="#/alertas">Ver alertas →</a>`);
   chipsMedidas();
 }
 async function alertasChat() {
-  const r = regionChat(); const ues = agrupar(enRegion(await datos(estado.anio), r), "u", (f) => f.un).filter((x) => x.pim >= 1e6);
+  const r = regionChat(); const ues = agrupar(enRegion(await datosChat(), r), "u", (f) => f.un).filter((x) => x.pim >= 1e6);
   const rojos = ues.filter((x) => div(x.dev, x.pim) < 0.7).sort((a, b) => (b.pim - b.dev) - (a.pim - a.dev));
   burbuja(rojos.length
-    ? `🔔 En <b>${esc(nombreRegion(r))}</b> hay <b>${rojos.length}</b> unidades ejecutoras con avance menor al 70 %. Las de mayor monto pendiente:\n` +
+    ? `🔔 En <b>${esc(nombreRegion(r))}</b>${etqNivelChat()} hay <b>${rojos.length}</b> unidades ejecutoras con avance menor al 70 %. Las de mayor monto pendiente:\n` +
       rojos.slice(0, 4).map((x) => `• ${esc(x.n)}: ${pct(div(x.dev, x.pim))}, faltan ${mill(x.pim - x.dev)}`).join("\n") +
       `\n<a class="btn-ir" href="#/alertas">Ver panel de alertas →</a>`
-    : `🎉 En <b>${esc(nombreRegion(r))}</b> no hay unidades ejecutoras en rojo.`);
+    : `🎉 En <b>${esc(nombreRegion(r))}</b>${etqNivelChat()} no hay unidades ejecutoras en rojo.`);
   chipsMedidas();
 }
 
@@ -569,15 +634,23 @@ async function preguntaLibre(txt) {
   const anio = estado.anios.find((a) => q.includes(String(a))) || estado.anio;
   const dep = Object.entries(DEPARTAMENTOS).find(([, v]) => new RegExp(`\\b${norm(v)}\\b`).test(q));
   if (dep) chat.region = dep[0];
-  else if (/\b(peru|nacional|todo el pais|sector)\b/.test(q)) chat.region = "";
+  else if (/\b(peru|todo el pais|a nivel nacional)\b/.test(q)) chat.region = "";
+  // nivel de gobierno mencionado en la pregunta (si no menciona ninguno, se usa el del sitio)
+  chat.nivel = null;
+  if (/\b(gobiernos? regional(es)?|regionales|gore)\b/.test(q)) chat.nivel = "GR";
+  else if (/\b(municipal\w*|gobiernos? locales?|locales|alcaldia)\b/.test(q)) chat.nivel = "GL";
+  else if (/\b(sector|minedu|gobierno nacional)\b/.test(q)) chat.nivel = "GN";
+  else if (/\btodos los niveles\b/.test(q)) chat.nivel = "";
   const medida = MEDIDAS.find(([, , claves]) => claves.some((c) => q.includes(c)));
   // pliego o unidad ejecutora mencionada
   const palabras = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !["cuanto", "cuanta", "avance", "devengado", "como", "unidad", "ejecutora", "pliego",
-    "region", "departamento", "tiene", "lleva", "ejecucion", "presupuesto", "girado", "certificado", "compromiso", "pendiente", "alertas"].includes(w)
+    "region", "departamento", "tiene", "lleva", "ejecucion", "presupuesto", "girado", "certificado", "compromiso", "pendiente", "alertas",
+    "gobierno", "gobiernos", "regional", "regionales", "local", "locales", "municipal", "municipales", "municipalidad", "municipalidades", "sector",
+    "educacion", "nacional", "niveles", "todos", "nivel"].includes(w)
     && !Object.values(DEPARTAMENTOS).some((d) => norm(d).includes(w)));
   let entidad = null;
   if (palabras.length) {
-    const filas = await datos(anio); const cand = new Map();
+    const filas = await datosChat(anio); const cand = new Map();
     for (const f of filas) {
       for (const [tipo, k, n] of [["u", f.u, f.un], ["p", f.p, f.pn]]) {
         const nn = norm(n); const s = palabras.filter((w) => nn.includes(w)).length;
@@ -609,7 +682,8 @@ function abrirChat() {
   $("#chat").hidden = false; $("#guia").hidden = true;
   if (!chat.iniciado) {
     chat.iniciado = true;
-    burbuja(`¡Hola! Soy <b>UPEPINO</b> 🥒 ¿En qué te ayudo hoy?${estado.region ? `\nEstoy mirando <b>${esc(nombreRegion())}</b>.` : ""}`);
+    burbuja(`¡Hola! Soy <b>UPEPINO</b> 🥒 ¿En qué te ayudo hoy?${estado.region ? `\nEstoy mirando <b>${esc(nombreRegion())}</b>.` : ""}
+Puedo responderte sobre el Sector Educación, los Gobiernos Regionales o los Gobiernos Locales.`);
     menuPrincipal();
   }
   setTimeout(() => $("#chat-txt").focus(), 100);
@@ -626,17 +700,18 @@ $("#chat-form").addEventListener("submit", (ev) => {
 (async function iniciar() {
   cargando();
   try {
-    const cortes = await rpc("pub_cortes");
-    estado.anios = cortes.map((c) => c.anio);
-    estado.cortes = Object.fromEntries(cortes.map((c) => [c.anio, c]));
+    const cortes = (await rpc("pub_cortes")).map((c) => ({ ...c, nivel: c.nivel || "GN" }));
+    estado.anios = [...new Set(cortes.map((c) => c.anio))].sort((a, b) => b - a);
+    estado.cortes = Object.fromEntries(cortes.map((c) => [c.anio + "|" + c.nivel, c]));
     estado.anio = estado.anios[0];
     if (!estado.anio) throw new Error("Todavía no hay datos publicados.");
-    $("#pie-corte").textContent = `Datos al ${fecha(estado.cortes[estado.anio].corte)}`;
+    $("#pie-corte").textContent = `Datos al ${fecha(ultimoCorte())}`;
   } catch (e) {
     $("#vista").innerHTML = `<div class="cont"><p class="vacio">😕 ${esc(e.message)}</p></div>`;
     return;
   }
   $("#chip-region span").textContent = nombreRegion();
+  $("#chip-nivel").value = estado.nivel;
   if (estado.region) $("#chat-region").textContent = "📍 " + nombreRegion();
   await enrutar();
   if (leer("upepino_region") === null) setTimeout(abrirBienvenida, 600);

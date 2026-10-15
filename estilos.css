@@ -230,3 +230,17 @@ dialog.bienvenida select { width: 100%; padding: 12px; border: 1px solid var(--b
 .sello-corte { display: inline-block; margin: 0 0 14px; padding: 7px 14px; border-radius: 99px; background: rgba(0,0,0,.22);
   border: 1px solid rgba(255,255,255,.25); font-size: .86rem; color: #FBEDE8; }
 .sello-corte b { color: var(--dorado); }
+/* nivel de gobierno */
+select.chip-nivel { appearance: none; -webkit-appearance: none; padding-right: 14px; font-family: inherit; max-width: 210px; }
+select.chip-nivel option { color: #1C1917; background: #fff; }
+.niveles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 16px; }
+.niveles > span { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #F3D9D2; }
+.niveles .segm { background: rgba(255,255,255,.92); }
+.niveles .segm button { color: #4A403B; }
+.sel-nivel { border-color: var(--rojo) !important; color: var(--granate); }
+@media (max-width: 1100px) { select.chip-nivel { display: none; } }
+@media (max-width: 600px) {
+  .niveles .segm { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .niveles .segm button { padding: 8px 6px; }
+  .filtros .sel { flex: 1 1 140px; }
+}

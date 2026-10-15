@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="google" content="notranslate">
   <meta name="theme-color" content="#7A0B0B">
-  <meta name="description" content="UPEPINO: radar de la ejecución presupuestal del Sector Educación por departamento, pliego y unidad ejecutora.">
+  <meta name="description" content="UPEPINO: radar de la ejecución presupuestal de Educación (Sector Educación, Gobiernos Regionales y Gobiernos Locales) por departamento, pliego y unidad ejecutora.">
   <title>UPEPINO · Radar presupuestal de Educación</title>
   <link rel="icon" href="upepino-cara.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,9 +16,13 @@
   <header class="barra">
     <a class="marca" href="#/">
       <img src="upepino-cara.svg" alt="">
-      <span>UPEPINO<small>Radar presupuestal · Sector Educación</small></span>
+      <span>UPEPINO<small>Radar presupuestal · Educación</small></span>
     </a>
     <span class="sep"></span>
+    <select id="chip-nivel" class="chip-region chip-nivel" title="Nivel de gobierno" aria-label="Nivel de gobierno">
+      <option value="">🏛️ Todos los niveles</option><option value="GN">🏛️ Sector Educación</option>
+      <option value="GR">🏛️ Gob. Regionales</option><option value="GL">🏛️ Gob. Locales</option>
+    </select>
     <button id="chip-region" class="chip-region" type="button" title="Cambiar departamento">📍 <span>Todo el Perú</span></button>
     <button class="btn-hamb" id="btn-hamb" type="button" aria-label="Menú">☰</button>
     <nav class="menu-links" id="menu-links">
@@ -32,7 +36,8 @@
   <main id="vista"></main>
 
   <footer>
-    Fuente: Sistema Integrado de Administración Financiera (SIAF-SP), Ministerio de Economía y Finanzas · Sector 10 Educación
+    Fuente: Sistema Integrado de Administración Financiera (SIAF-SP), Ministerio de Economía y Finanzas · Sector 10 Educación; Gobiernos Regionales (funciones 22 Educación y
+    24 Previsión Social); Gobiernos Locales (función 22 Educación)
     <br><span id="pie-corte"></span> · <b>UPEPINO</b>, tu guía del presupuesto educativo
   </footer>
 

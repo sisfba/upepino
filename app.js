@@ -24,7 +24,7 @@ const COLORES_ANIO = ["#D9A93A", "#7A6F69", "#A30F14"];
 const estado = {
   anios: [], cortes: {}, anio: null, region: leer("upepino_region") ?? null,
   nivel: ["GN", "GR", "GL"].includes(leer("upepino_nivel")) ? leer("upepino_nivel") : "",
-  datos: new Map(), geo: null, graficos: [], grupo: "", pliegoSel: null,
+  datos: new Map(), geo: null, graficos: [], grupo: "", pliegoSel: null, rep: { p: "", u: "" }, reportes: new Map(),
 };
 
 // ------------------------------------------------------------------ utilidades
@@ -162,7 +162,7 @@ async function enrutar(arriba = true) {
   $$("#menu-links a").forEach((a) => a.classList.toggle("activo", a.dataset.r === ruta));
   $("#menu-links").classList.remove("abierto");
   limpiarGraficos();
-  const vistas = { inicio: vInicio, resumen: vResumen, pliegos: vPliegos, alertas: vAlertas };
+  const vistas = { inicio: vInicio, resumen: vResumen, pliegos: vPliegos, alertas: vAlertas, reporte: vReporte };
   try {
     await (vistas[ruta] || vInicio)();
   } catch (e) {
@@ -327,6 +327,7 @@ async function vInicio() {
     ${tarjeta("#/resumen", "📊", "Resumen general", "Ejecución consolidada: PIA, PIM, certificado, devengado y girado; mapa por departamento, ranking y evolución mensual.")}
     ${tarjeta("#/pliegos", "🏛️", "Pliegos y UE", "Avance por pliego (MINEDU, universidades, gobiernos regionales y municipalidades) y por cada una de sus unidades ejecutoras.")}
     ${tarjeta("#/alertas", "🔔", "Alertas de seguimiento", "Unidades ejecutoras y genéricas con bajo avance según el semáforo: ≥ 80 % verde, 70–79 % ámbar, < 70 % rojo.")}
+    ${tarjeta("#/reporte", "🧾", "Reporte de seguimiento", "Ejecución por genérica, pendiente de comprometer y certificar por genérica y por CP/PP, y conceptos con baja ejecución. Descargable en PDF.")}
   </div></div>`;
   alSegmento("s-nivel", (v) => aplicarNivel(v));
 }
@@ -509,6 +510,105 @@ async function vAlertas() {
   }
   guia(`<b>Alertas de seguimiento</b><br>${rojos.length ? `Hay <b>${rojos.length}</b> unidades en rojo con
     <b>${mill(enRiesgo)}</b> por devengar.` : "¡No hay unidades en rojo!"} Revisa las genéricas críticas más abajo.`);
+}
+
+// ------------------------------------------------------------------ reporte de seguimiento
+const enteros = (x) => (x == null || !isFinite(x) || Math.abs(x) < 0.5 ? "" : Math.round(x).toLocaleString("en-US").replace(/,/g, " "));
+function calcular(t) {
+  return { ...t, pc: t.pim - t.cer, pcm: t.pim - t.com, pd: t.pim - t.dev, av: div(t.dev, t.pim) };
+}
+function cuadroRep(filas, cols, cab, etiqueta, codigo = false) {
+  if (!filas.length) return `<p class="vacio">Sin información para este ámbito.</p>`;
+  const tot = calcular(filas.reduce((a, f) => ({ pim: a.pim + f.pim, cer: a.cer + f.cer, com: a.com + f.com, dev: a.dev + f.dev }),
+    { pim: 0, cer: 0, com: 0, dev: 0 }));
+  const fila = (f, esTot) => `<tr class="${esTot ? "tot" : ""}"><td class="${esTot || codigo ? "c" : "nom"}">${esTot ? "TOTAL" : etiqueta(f)}</td>${
+    cols.map(([k]) => `<td>${enteros(f[k])}</td>`).join("")}<td class="av ${sem(f.av)}">${f.av == null ? "" : Math.round(f.av * 100) + "%"}</td></tr>`;
+  return `<div class="rep-wrap"><table class="rep"><thead><tr><th>${cab}</th>${cols.map(([, t]) => `<th>${t}</th>`).join("")}
+    <th>% Ejecución<br>(Dev/PIM)</th></tr></thead><tbody>${filas.map((f) => fila(f)).join("")}${fila(tot, true)}</tbody></table></div>
+    <div class="rep-fuente">FUENTE: SIAF al ${textoCorte()}</div>`;
+}
+const C_EJEC = [["pim", "PIM"], ["cer", "Certificado"], ["pc", "Pendiente de certificar"], ["com", "Compromiso anual"], ["dev", "Devengado"]];
+const C_PEND = [["pim", "PIM"], ["cer", "Certificado"], ["pc", "Pendiente de certificar"], ["com", "Compromiso anual"],
+  ["pcm", "Pendiente de compromiso anual"], ["dev", "Devengado"]];
+const C_CONC = [["pim", "PIM"], ["cer", "Certificado"], ["pc", "Pendiente de certificar"], ["dev", "Devengado"], ["pd", "Pendiente de devengar"]];
+const NOMBRE_GEN_REP = (g) => g + ". " + (GENERICAS[g] || "").replace(/^2\.\d /, "").toUpperCase();
+
+// parámetros de pub_reporte para el ámbito elegido (las municipalidades se agrupan como "GL" + departamento)
+function paramsReporte(nivel, region, p, u) {
+  const q = { p_anio: estado.anio, p_nivel: nivel || null, p_dep: region || null, p_pliego: p || null, p_ue: u || null };
+  if (p && p.startsWith("GL")) { q.p_nivel = "GL"; q.p_dep = p.slice(2); q.p_pliego = null; }
+  return q;
+}
+async function datosReporte(q) {
+  const k = JSON.stringify(q);
+  if (!estado.reportes.has(k)) {
+    const pr = rpc("pub_reporte", q); pr.catch(() => estado.reportes.delete(k)); estado.reportes.set(k, pr);
+  }
+  return estado.reportes.get(k);
+}
+
+async function vReporte() {
+  cargando();
+  const todas = enRegion(await datos(estado.anio));
+  // listas de pliegos y UE del ámbito
+  const pls = agrupar(todas, "p", (f) => f.pn).filter((x) => x.pim > 0.5).sort((a, b) => a.n.localeCompare(b.n));
+  if (estado.rep.p && !pls.some((x) => x.k === estado.rep.p)) estado.rep = { p: "", u: "" };
+  const enPl = estado.rep.p ? todas.filter((f) => f.p === estado.rep.p) : todas;
+  const ues = agrupar(enPl, "u", (f) => f.un).filter((x) => x.pim > 0.5).sort((a, b) => a.n.localeCompare(b.n));
+  if (estado.rep.u && !ues.some((x) => x.k === estado.rep.u)) estado.rep.u = "";
+  const filas = estado.rep.u ? enPl.filter((f) => f.u === estado.rep.u) : enPl;
+  const sel = estado.rep.u ? ues.find((x) => x.k === estado.rep.u) : estado.rep.p ? pls.find((x) => x.k === estado.rep.p) : null;
+  const titulo = sel ? sel.n : (estado.region ? nombreRegion() : "Todo el Perú") + " · " + quienNivel();
+  const gens = agrupar(filas, "g").filter((x) => Math.abs(x.pim) > 0.5 || Math.abs(x.dev) > 0.5)
+    .sort((a, b) => a.k.localeCompare(b.k)).map((x) => calcular({ ...x, n: NOMBRE_GEN_REP(x.k) }));
+  $("#vista").innerHTML = `<div class="cont">
+    ${cabecera("Reporte de seguimiento", "🧾", "Reporte de seguimiento")}
+    <div class="filtros rep-filtros">
+      <select id="r-pliego" class="sel" aria-label="Pliego"><option value="">Todos los pliegos</option>
+        ${pls.map((x) => `<option value="${esc(x.k)}" ${x.k === estado.rep.p ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select>
+      <select id="r-ue" class="sel" aria-label="Unidad ejecutora"><option value="">Todas las unidades ejecutoras</option>
+        ${ues.map((x) => `<option value="${esc(x.k)}" ${x.k === estado.rep.u ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select>
+      <button type="button" class="btn-prim" id="r-pdf">🖨️ Descargar PDF</button>
+    </div>
+    <article class="reporte" id="reporte">
+      <h1 class="rep-tit">${esc(titulo.toUpperCase())}</h1>
+      <div class="rep-sub">Año ${estado.anio} · ${esc(NIVELES[estado.nivel])} · información del SIAF con corte al ${textoCorte()}</div>
+      <h2 class="rep-sec">1. Ejecución presupuestal</h2>
+      ${cuadroRep(gens, C_EJEC, "Genérica", (f) => esc(f.n))}
+      <h2 class="rep-sec">2. Presupuesto pendiente de comprometer y certificar</h2>
+      ${cuadroRep(gens, C_PEND, "Genérica", (f) => esc(f.n))}
+      <div id="rep-prog" class="rep-bloque"><p class="vacio">UPEPINO está sumando los CP/PP…</p></div>
+      <h2 class="rep-sec">3. Conceptos con baja ejecución</h2>
+      <div id="rep-conc"><p class="vacio">UPEPINO está buscando los conceptos con bajo avance…</p></div>
+      <p class="rep-nota">Conceptos: específicas de gasto (específica detalle) de las genéricas 2.3 a 2.6 con avance del devengado
+        menor al 50 % y PIM de S/ 50 mil o más, ordenadas por el monto pendiente de devengar (máximo 15).
+        Semáforo del % de ejecución: <b class="sv">verde ≥ 80 %</b> · <b class="sa">ámbar 70 % – 79 %</b> · <b class="sr">rojo &lt; 70 %</b>.</p>
+    </article>
+  </div>`;
+  conectarFiltros();
+  $("#r-pliego").addEventListener("change", (e) => { estado.rep = { p: e.target.value, u: "" }; enrutar(false); });
+  $("#r-ue").addEventListener("change", (e) => { estado.rep.u = e.target.value; enrutar(false); });
+  $("#r-pdf").addEventListener("click", () => {
+    const t = document.title; document.title = "Reporte de seguimiento - " + titulo + " - " + estado.anio;
+    window.print(); setTimeout(() => { document.title = t; }, 500);
+  });
+  guia(`<b>Reporte de seguimiento</b><br>Elige un pliego o una unidad ejecutora y pulsa <b>Descargar PDF</b>
+    para guardarlo o imprimirlo.`);
+  try {
+    const r = await datosReporte(paramsReporte(estado.nivel, estado.region, estado.rep.p, estado.rep.u));
+    if (!$("#rep-prog")) return;
+    const prog = (r.prog || []).map((x) => calcular(x));
+    $("#rep-prog").innerHTML = cuadroRep(prog, C_PEND, "CP/PP", (f) => `<span title="${esc(f.n)}">${esc(f.c)}</span>`, true) +
+      (prog.length ? `<p class="rep-nota">${prog.map((f) => `<b>${esc(f.c)}</b> ${esc(f.n)}`).join(" · ")}</p>` : "");
+    const conc = (r.conc || []).map((x) => calcular(x));
+    $("#rep-conc").innerHTML = conc.length
+      ? cuadroRep(conc, C_CONC, "Concepto (específica de gasto)", (f) => `${esc(f.n)} <small>(${esc(f.c)})</small>`)
+      : `<p class="vacio">🎉 No hay específicas de gasto con avance menor al 50 % y PIM de S/ 50 mil o más.</p>`;
+  } catch (e) {
+    if (!$("#rep-prog")) return;
+    $("#rep-prog").innerHTML = `<p class="vacio">Los cuadros por CP/PP y de conceptos aún no están disponibles.</p>`;
+    $("#rep-conc").innerHTML = "";
+  }
 }
 
 // ------------------------------------------------------------------ chat de UPEPINO

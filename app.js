@@ -1,4 +1,4 @@
-/* UPEPINO — Radar presupuestal de Educación (Sector Educación, Gobiernos Regionales y Gobiernos Locales).
+/* UPPepino — Radar presupuestal de Educación (Sector Educación, Gobiernos Regionales y Gobiernos Locales).
    Lee los datos públicos de Supabase (funciones pub_cortes y pub_datos) y arma los paneles en el navegador. */
 "use strict";
 
@@ -100,7 +100,7 @@ function agrupar(filas, clave, nombre) {
 
 function limpiarGraficos() { estado.graficos.forEach((g) => g.destroy()); estado.graficos = []; }
 function cargando() {
-  $("#vista").innerHTML = `<div class="cargando"><img src="upepino.svg" alt=""><p>UPEPINO está trayendo los datos…</p></div>`;
+  $("#vista").innerHTML = `<div class="cargando"><img src="upepino.svg" alt=""><p>UPPepino está trayendo los datos…</p></div>`;
 }
 
 // ------------------------------------------------------------------ región (departamento)
@@ -109,7 +109,7 @@ function aplicarRegion(r, avisar = true) {
   guardar("upepino_region", estado.region || "");
   $("#chip-region span").textContent = nombreRegion();
   $("#chat-region").textContent = estado.region ? "📍 " + nombreRegion() : "Pregúntame por tu región";
-  if (avisar) mostrarAviso("¡Listo, soy UPEPINO!", estado.region ? `Ahora estás viendo ${nombreRegion()}` : "Ahora estás viendo todo el Perú");
+  if (avisar) mostrarAviso("¡Listo, soy UPPepino!", estado.region ? `Ahora estás viendo ${nombreRegion()}` : "Ahora estás viendo todo el Perú");
   enrutar();
 }
 
@@ -119,7 +119,7 @@ function aplicarNivel(n, avisar = true) {
   guardar("upepino_nivel", estado.nivel);
   estado.grupo = ""; estado.pliegoSel = null;
   $("#chip-nivel").value = estado.nivel;
-  if (avisar) mostrarAviso("¡Listo, soy UPEPINO!", `Ahora estás viendo: ${NIVELES[estado.nivel]}`);
+  if (avisar) mostrarAviso("¡Listo, soy UPPepino!", `Ahora estás viendo: ${NIVELES[estado.nivel]}`);
   enrutar(false);
 }
 $("#chip-nivel").addEventListener("change", (e) => aplicarNivel(e.target.value));
@@ -310,7 +310,7 @@ async function vInicio() {
         cuánto se ejecutó en el Sector Educación, los Gobiernos Regionales y los Gobiernos Locales, por departamento,
         pliego y unidad ejecutora.</p>
       <div class="niveles"><span>Nivel de gobierno</span>${segmentado("s-nivel", Object.entries(NIVEL_CORTO), estado.nivel)}</div>
-      <div class="lema"><img src="upepino-cara.svg" alt="">UPEPINO</div>
+      <div class="lema"><img src="upepino-cara.svg" alt="">UPPepino</div>
       <div class="contadores">
         <div><b>${nombreRegion() === "Todo el Perú" ? 25 : 1}</b><span>Departamento${estado.region ? "" : "s"}</span></div>
         ${contadores}
@@ -318,9 +318,9 @@ async function vInicio() {
       </div>
     </div>
     <div class="mascota">
-      <div class="globo"><b>¡Hola, soy UPEPINO! 🥒</b><br>Te acompaño a descubrir cómo avanza el presupuesto de educación en
+      <div class="globo"><b>¡Hola, soy UPPepino! 🥒</b><br>Te acompaño a descubrir cómo avanza el presupuesto de educación en
         ${estado.region ? "<b>" + esc(nombreRegion()) + "</b>" : "tu región"}, con la última información disponible.</div>
-      <img src="upepino.svg" alt="UPEPINO, el pepino del presupuesto">
+      <img src="upepino.svg" alt="UPPepino, el pepino del presupuesto">
     </div>
   </div></section>
   <div class="cont"><div class="tarjetas-panel">
@@ -375,7 +375,7 @@ async function vResumen() {
   alSegmento("s-gen", (v) => { $("#genericas").innerHTML = barras(gens, v); });
 
   await curva($("#g-curva"));
-  guia(`<b>¡Hola, soy UPEPINO! 🥒</b><br>Estás en el <b>Resumen general</b>: aquí ves la ejecución consolidada
+  guia(`<b>¡Hola, soy UPPepino! 🥒</b><br>Estás en el <b>Resumen general</b>: aquí ves la ejecución consolidada
     ${estado.region ? "de <b>" + esc(nombreRegion()) + "</b>" : "a nivel nacional"} para <b>${esc(NIVELES[estado.nivel].toLowerCase())}</b>.
     Toca el mapa para cambiar de departamento.`);
 }
@@ -577,9 +577,9 @@ async function vReporte() {
       ${cuadroRep(gens, C_EJEC, "Genérica", (f) => esc(f.n))}
       <h2 class="rep-sec">2. Presupuesto pendiente de comprometer y certificar</h2>
       ${cuadroRep(gens, C_PEND, "Genérica", (f) => esc(f.n))}
-      <div id="rep-prog" class="rep-bloque"><p class="vacio">UPEPINO está sumando los CP/PP…</p></div>
+      <div id="rep-prog" class="rep-bloque"><p class="vacio">UPPepino está sumando los CP/PP…</p></div>
       <h2 class="rep-sec">3. Conceptos con baja ejecución</h2>
-      <div id="rep-conc"><p class="vacio">UPEPINO está buscando los conceptos con bajo avance…</p></div>
+      <div id="rep-conc"><p class="vacio">UPPepino está buscando los conceptos con bajo avance…</p></div>
       <p class="rep-nota">Conceptos: específicas de gasto (específica detalle) de las genéricas 2.3 a 2.6 con avance del devengado
         menor al 50 % y PIM de S/ 50 mil o más, ordenadas por el monto pendiente de devengar (máximo 15).
         Semáforo del % de ejecución: <b class="sv">verde ≥ 80 %</b> · <b class="sa">ámbar 70 % – 79 %</b> · <b class="sr">rojo &lt; 70 %</b>.</p>
@@ -611,7 +611,7 @@ async function vReporte() {
   }
 }
 
-// ------------------------------------------------------------------ chat de UPEPINO
+// ------------------------------------------------------------------ chat de UPPepino
 const chat = { region: null, nivel: null, iniciado: false };
 const nivelChat = () => (chat.nivel !== null ? chat.nivel : estado.nivel);
 const etqNivelChat = () => (nivelChat() ? ` · ${NIVEL_CORTO[nivelChat()]}` : "");
@@ -622,6 +622,85 @@ const MEDIDAS = [
   ["av", "% Avance", ["avance", "porcentaje", "%", "ejecucion", "como vamos", "como va"]],
   ["pend", "Pendiente", ["pendiente", "saldo", "falta", "por devengar", "por ejecutar"]],
 ];
+
+// ---- aprendizaje: corrige errores de escritura, recuerda lo que la gente quiso decir y lo más consultado
+const INTENCIONES = {
+  "m:pim": "PIM (presupuesto)", "m:dev": "Devengado (gastado)", "m:av": "% de avance", "m:pend": "Pendiente por gastar",
+  "m:cer": "Certificado", "m:com": "Compromiso", "m:gir": "Girado (pagado)", "m:pia": "PIA",
+  alertas: "Alertas (bajo avance)", ranking: "Ranking de unidades", reporte: "Reporte de seguimiento", resumen: "Resumen general",
+};
+const VOCAB = ["pia", "pim", "apertura", "modificado", "presupuesto", "certificado", "certificacion", "compromiso", "comprometido",
+  "devengado", "devengo", "devengaron", "gasto", "gastado", "gastaron", "ejecutado", "girado", "pagado", "avance", "porcentaje",
+  "ejecucion", "pendiente", "saldo", "falta", "alertas", "alerta", "ranking", "reporte", "regional", "regionales", "municipal",
+  "municipalidad", "municipalidades", "locales", "sector", "minedu", "universidad", "ugel", "educacion"];
+const VACIAS = new Set(("a al de del la las el los lo un una unos unas y o en por para con que cual cuales cuanto cuanta cuantos cuantas " +
+  "como cuando donde es son esta estan hay ha han se su sus mi me te le les nos ya muy mas menos dime dame quiero quisiera saber ver " +
+  "puedes podrias favor hola gracias sobre total año anio tiene tienen lleva van va del este esta ese esa eso punto").split(" "));
+const aprende = { saber: { aprendido: [], populares: [] }, cargado: 0 };
+const sesionChat = (() => {
+  let s = leer("upp_sesion");
+  if (!s) { s = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/-/g, ""); guardar("upp_sesion", s); }
+  return s;
+})();
+async function cargarSaber(forzar = false) {
+  if (!forzar && Date.now() - aprende.cargado < 5 * 60e3) return aprende.saber;
+  try { aprende.saber = await rpc("chat_conocimiento"); aprende.cargado = Date.now(); } catch (_) { /* aún no instalado */ }
+  return aprende.saber;
+}
+const registrar = (tipo, texto, ejemplo) => { rpc("chat_registrar", { p_tipo: tipo, p_texto: texto, p_ejemplo: ejemplo || null }).catch(() => {}); };
+function distancia(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+let _vocabTotal = null;
+function corregir(q) {
+  if (!_vocabTotal) _vocabTotal = [...new Set([...VOCAB, ...Object.values(DEPARTAMENTOS).flatMap((d) => norm(d).split(" "))
+    .filter((w) => w.length >= 4)])];
+  return q.split(" ").map((w) => {
+    if (w.length < 4 || /\d/.test(w) || VACIAS.has(w) || _vocabTotal.includes(w)) return w;
+    const tope = w.length >= 7 ? 2 : 1;
+    let mejor = null, dm = 9;
+    for (const v of _vocabTotal) { const x = distancia(w, v); if (x < dm && v[0] === w[0]) { dm = x; mejor = v; } }
+    return mejor && dm <= tope ? mejor : w;
+  }).join(" ");
+}
+// palabras "de contenido" de la pregunta (sin vacías, departamentos, años ni palabras que el chat ya conoce)
+function claveFrase(q) {
+  const deps = new Set(Object.values(DEPARTAMENTOS).flatMap((d) => norm(d).split(" ")));
+  const conocidas = new Set(VOCAB);
+  return [...new Set(q.split(/[^a-z0-9%]+/).filter((w) => w.length >= 3 && !VACIAS.has(w) && !deps.has(w) && !conocidas.has(w) && !/^\d+$/.test(w)))]
+    .sort().join(" ");
+}
+function aprendidoPara(clave) {
+  if (!clave) return null;
+  const mias = new Set(clave.split(" "));
+  let mejor = null;
+  for (const a of aprende.saber.aprendido || []) {
+    const sus = a.f.split(" ");
+    if (sus.length && sus.every((w) => mias.has(w)) && (!mejor || sus.length > mejor.f.split(" ").length)) mejor = a;
+  }
+  return mejor;
+}
+const etiquetaPopular = (c) => {
+  const [i, d, n] = c.split("|");
+  return [INTENCIONES[i] ? INTENCIONES[i].replace(/ \(.*\)/, "") : i, d ? DEPARTAMENTOS[d] : "Todo el Perú", n ? NIVEL_CORTO[n.toUpperCase()] : ""].filter(Boolean).join(" · ");
+};
+async function ejecutarIntencion(i, anio = estado.anio, entidad = null) {
+  if (i.startsWith("m:")) return entidad ? entidadChat(entidad, i.slice(2), anio) : medidaChat(i.slice(2), anio);
+  if (i === "alertas") return alertasChat();
+  if (i === "ranking") return rankingChat();
+  if (i === "resumen") return resumenRegionChat();
+  if (i === "reporte") {
+    burbuja(`🧾 Te llevo al <b>Reporte de seguimiento</b>${regionChat() ? " de <b>" + esc(nombreRegion(regionChat())) + "</b>" : ""}.`);
+    if (regionChat() !== (estado.region || "")) { estado.region = regionChat() || null; guardar("upepino_region", estado.region || ""); }
+    location.hash = "#/reporte";
+  }
+}
+const claveConsulta = (i) => `${i}|${regionChat() || ""}|${(nivelChat() || "").toLowerCase()}`;
 
 function burbuja(html, quien = "bot") {
   const d = document.createElement("div");
@@ -650,7 +729,16 @@ function menuPrincipal() {
     ["🔔 Alertas de mi región", () => responder(alertasChat)],
     ["📊 ¿Cómo vamos?", () => responder(() => medidaChat("av"))],
     ["🏛️ Nivel de gobierno", elegirNivelChat],
+    ["🧾 Reporte de seguimiento", () => responder(() => ejecutarIntencion("reporte"))],
   ]);
+  const pop = (aprende.saber.populares || []).filter((p) => p.v >= 2).slice(0, 4);
+  if (pop.length) {
+    burbuja("🔥 <b>Lo más consultado</b>:");
+    chips(pop.map((p) => [etiquetaPopular(p.c), () => {
+      const [i, d, n] = p.c.split("|"); chat.region = d || ""; chat.nivel = n ? n.toUpperCase() : "";
+      responder(() => ejecutarIntencion(i));
+    }]));
+  }
 }
 function elegirNivelChat() {
   burbuja(`¿Qué nivel de gobierno quieres consultar? Ahora estoy en <b>${esc(NIVELES[nivelChat()])}</b>.`);
@@ -728,7 +816,8 @@ async function alertasChat() {
 }
 
 async function preguntaLibre(txt) {
-  const q = norm(txt);
+  await cargarSaber();
+  const q = corregir(norm(txt).replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim());
   if (/^(hola|buen|hey|saludos)/.test(q)) { burbuja("¡Hola! 🥒 Pregúntame, por ejemplo: <i>¿Cuánto devengó Cusco?</i>, <i>avance de San Marcos</i> o <i>alertas en Puno</i>."); return menuPrincipal(); }
   if (/gracias/.test(q)) return burbuja("¡De nada! Aquí estaré si necesitas algo más. 🥒");
   const anio = estado.anios.find((a) => q.includes(String(a))) || estado.anio;
@@ -741,9 +830,14 @@ async function preguntaLibre(txt) {
   else if (/\b(municipal\w*|gobiernos? locales?|locales|alcaldia)\b/.test(q)) chat.nivel = "GL";
   else if (/\b(sector|minedu|gobierno nacional)\b/.test(q)) chat.nivel = "GN";
   else if (/\btodos los niveles\b/.test(q)) chat.nivel = "";
-  const medida = MEDIDAS.find(([, , claves]) => claves.some((c) => q.includes(c)));
+  let medida = MEDIDAS.find(([, , claves]) => claves.some((c) => q.includes(c)));
+  // lo que otras personas ya le enseñaron al chat
+  const clave = claveFrase(q);
+  const sabido = !medida ? aprendidoPara(clave) : null;
+  const usadas = new Set(sabido ? sabido.f.split(" ") : []);
+  if (sabido && sabido.i.startsWith("m:")) medida = MEDIDAS.find(([k]) => k === sabido.i.slice(2));
   // pliego o unidad ejecutora mencionada
-  const palabras = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !["cuanto", "cuanta", "avance", "devengado", "como", "unidad", "ejecutora", "pliego",
+  const palabras = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !usadas.has(w) && !VACIAS.has(w) && !["cuanto", "cuanta", "avance", "devengado", "como", "unidad", "ejecutora", "pliego",
     "region", "departamento", "tiene", "lleva", "ejecucion", "presupuesto", "girado", "certificado", "compromiso", "pendiente", "alertas",
     "gobierno", "gobiernos", "regional", "regionales", "local", "locales", "municipal", "municipales", "municipalidad", "municipalidades", "sector",
     "educacion", "nacional", "niveles", "todos", "nivel"].includes(w)
@@ -764,13 +858,29 @@ async function preguntaLibre(txt) {
       return chips(lista.slice(0, 6).map((e) => [e.n, () => responder(() => entidadChat(e, "av", anio))]));
     }
   }
-  if (/alerta|riesgo|rojo|bajo avance|peor/.test(q) && !entidad) return alertasChat();
-  if (/ranking|mejor|mayor avance|menor avance/.test(q) && !entidad) return rankingChat();
+  const ok = (i) => { registrar("ok", claveConsulta(i)); };
+  if (sabido && !sabido.i.startsWith("m:") && !entidad) { ok(sabido.i); return ejecutarIntencion(sabido.i, anio); }
+  if (/alerta|riesgo|rojo|bajo avance|peor/.test(q) && !entidad) { ok("alertas"); return alertasChat(); }
+  if (/ranking|mejor|mayor avance|menor avance/.test(q) && !entidad) { ok("ranking"); return rankingChat(); }
+  if (/reporte|informe|formato/.test(q) && !entidad && !medida) { ok("reporte"); return ejecutarIntencion("reporte"); }
   if (entidad) return entidadChat(entidad, medida ? medida[0] : "av", anio);
-  if (medida) return medidaChat(medida[0], anio);
-  if (dep) return resumenRegionChat();
-  burbuja("No te entendí del todo 🤔. Puedes preguntarme cosas como:\n• <i>¿Cuánto es el PIM de Arequipa?</i>\n• <i>Avance de la UGEL Cusco</i>\n• <i>Devengado de San Marcos en 2025</i>\n• <i>Alertas en Loreto</i>");
-  menuPrincipal();
+  if (medida) { ok("m:" + medida[0]); return medidaChat(medida[0], anio); }
+  if (dep) { ok("resumen"); return resumenRegionChat(); }
+  // no entendió: pregunta qué quería y aprende de la respuesta
+  registrar("no", clave || q, txt);
+  if (!clave) {
+    burbuja("No te entendí del todo 🤔. Puedes preguntarme cosas como:\n• <i>¿Cuánto es el PIM de Arequipa?</i>\n• <i>Avance de la UGEL Cusco</i>\n• <i>Devengado de San Marcos en 2025</i>\n• <i>Alertas en Loreto</i>");
+    return menuPrincipal();
+  }
+  burbuja(`No estoy seguro de qué quieres decir con «<b>${esc(clave)}</b>» 🤔. ¿Qué querías saber? Elige una opción y así aprendo:`);
+  chips([...Object.entries(INTENCIONES).map(([i, t]) => [t, () => {
+    rpc("chat_ensenar", { p_frase: clave, p_intencion: i, p_sesion: sesionChat }).catch(() => {});
+    registrar("ok", claveConsulta(i));
+    responder(async () => {
+      await ejecutarIntencion(i, anio);
+      burbuja(`🥒 ¡Gracias! Tomo nota: «${esc(clave)}» = <b>${esc(t)}</b>. Cuando varias personas me enseñen lo mismo, lo entenderé solo.`);
+    });
+  }]), ["Ninguna, ver el menú", menuPrincipal, "sec"]]);
 }
 async function entidadChat(e, k, anio = estado.anio) {
   const fn = e.tipo === "u" ? (f) => f.u === e.k : (f) => f.p === e.k;
@@ -782,10 +892,11 @@ function abrirChat() {
   $("#chat").hidden = false; $("#guia").hidden = true;
   if (!chat.iniciado) {
     chat.iniciado = true;
-    burbuja(`¡Hola! Soy <b>UPEPINO</b> 🥒 ¿En qué te ayudo hoy?${estado.region ? `\nEstoy mirando <b>${esc(nombreRegion())}</b>.` : ""}
-Puedo responderte sobre el Sector Educación, los Gobiernos Regionales o los Gobiernos Locales.`);
-    menuPrincipal();
-  }
+    burbuja(`¡Hola! Soy <b>UPPepino</b> 🥒 ¿En qué te ayudo hoy?${estado.region ? `\nEstoy mirando <b>${esc(nombreRegion())}</b>.` : ""}
+Puedo responderte sobre el Sector Educación, los Gobiernos Regionales o los Gobiernos Locales. Escríbeme como quieras: si no te
+entiendo, te pregunto y así voy aprendiendo.`);
+    Promise.race([cargarSaber(), new Promise((r) => setTimeout(r, 1500))]).then(menuPrincipal);
+  } else cargarSaber();
   setTimeout(() => $("#chat-txt").focus(), 100);
 }
 $("#fab").addEventListener("click", () => ($("#chat").hidden ? abrirChat() : ($("#chat").hidden = true)));

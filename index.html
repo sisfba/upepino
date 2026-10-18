@@ -69,6 +69,18 @@
     <button class="btn-link" id="dlg-todo" type="button">Prefiero ver todo el Perú</button>
   </dialog>
 
+  <!-- UPPepino: envío de la data del Sector por correo -->
+  <dialog class="bienvenida" id="dlg-correo">
+    <button class="cerrar-x" id="correo-cerrar" type="button" aria-label="Cerrar">✕</button>
+    <img src="upepino.svg" alt="UPPepino" style="width:110px">
+    <h2>📧 Te envío la data del Sector</h2>
+    <p>Recibirás un correo con el enlace para descargar el <b>último Excel del SIAF del Sector Educación</b>
+      (<span id="correo-archivo">archivo del día</span>). Solo para correos institucionales <b>@minedu.gob.pe</b>.</p>
+    <input id="correo-txt" type="email" placeholder="tu.usuario@minedu.gob.pe" autocomplete="email">
+    <button class="btn-prim" id="correo-enviar" type="button">Enviar a mi correo</button>
+    <p class="correo-msg" id="correo-msg" hidden></p>
+  </dialog>
+
   <div id="guia" class="guia" hidden><img src="upepino.svg" alt=""><div class="globo" id="guia-txt"></div></div>
   <div id="aviso" class="aviso" hidden><img src="upepino.svg" alt=""><div id="aviso-txt"></div></div>
   <div id="tip" class="tip" hidden></div>

@@ -310,6 +310,7 @@ async function vInicio() {
         cuánto se ejecutó en el Sector Educación, los Gobiernos Regionales y los Gobiernos Locales, por departamento,
         pliego y unidad ejecutora.</p>
       <div class="niveles"><span>Nivel de gobierno</span>${segmentado("s-nivel", Object.entries(NIVEL_CORTO), estado.nivel)}</div>
+      <button type="button" class="btn-correo" id="h-correo">📧 Recibir la data del Sector en mi correo</button>
       <div class="lema"><img src="upepino-cara.svg" alt="">UPPepino</div>
       <div class="contadores">
         <div><b>${nombreRegion() === "Todo el Perú" ? 25 : 1}</b><span>Departamento${estado.region ? "" : "s"}</span></div>
@@ -330,6 +331,7 @@ async function vInicio() {
     ${tarjeta("#/reporte", "🧾", "Reporte de seguimiento", "Ejecución por genérica, pendiente de comprometer y certificar por genérica y por CP/PP, y conceptos con baja ejecución. Descargable en PDF.")}
   </div></div>`;
   alSegmento("s-nivel", (v) => aplicarNivel(v));
+  $("#h-correo").addEventListener("click", abrirCorreo);
 }
 const tarjeta = (href, ico, t, d) => `<a class="tp" href="${href}"><div class="ico">${ico}</div><h3>${t}</h3><p>${d}</p><span class="ir">Ver panel →</span></a>`;
 
@@ -568,6 +570,7 @@ async function vReporte() {
         ${pls.map((x) => `<option value="${esc(x.k)}" ${x.k === estado.rep.p ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select>
       <select id="r-ue" class="sel" aria-label="Unidad ejecutora"><option value="">Todas las unidades ejecutoras</option>
         ${ues.map((x) => `<option value="${esc(x.k)}" ${x.k === estado.rep.u ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select>
+      <button type="button" class="btn-correo" id="r-correo">📧 Recibir data del Sector</button>
       <button type="button" class="btn-prim" id="r-pdf">🖨️ Descargar PDF</button>
     </div>
     <article class="reporte" id="reporte">
@@ -588,6 +591,7 @@ async function vReporte() {
   conectarFiltros();
   $("#r-pliego").addEventListener("change", (e) => { estado.rep = { p: e.target.value, u: "" }; enrutar(false); });
   $("#r-ue").addEventListener("change", (e) => { estado.rep.u = e.target.value; enrutar(false); });
+  $("#r-correo").addEventListener("click", abrirCorreo);
   $("#r-pdf").addEventListener("click", () => {
     const t = document.title; document.title = "Reporte de seguimiento - " + titulo + " - " + estado.anio;
     window.print(); setTimeout(() => { document.title = t; }, 500);
@@ -610,6 +614,40 @@ async function vReporte() {
     $("#rep-conc").innerHTML = "";
   }
 }
+
+// ------------------------------------------------------------------ envío de la data del Sector por correo
+function abrirCorreo() {
+  $("#correo-msg").hidden = true;
+  $("#correo-txt").value = leer("upp_correo") || "";
+  rpcPublico("pub_archivo_info").then((a) => {
+    if (a && a.nombre) $("#correo-archivo").textContent = `${a.nombre}, corte al ${fecha(a.fecha_corte)}`;
+  }).catch(() => {});
+  $("#dlg-correo").showModal();
+  setTimeout(() => $("#correo-txt").focus(), 50);
+}
+const rpcPublico = (fn, args = {}) => rpc(fn, args);
+async function enviarCorreo() {
+  const correo = $("#correo-txt").value.trim().toLowerCase();
+  const msg = $("#correo-msg");
+  const mostrar = (t, ok) => { msg.textContent = t; msg.className = "correo-msg " + (ok ? "ok" : "error"); msg.hidden = false; };
+  if (!/^[a-z0-9._%+-]+@minedu\.gob\.pe$/.test(correo)) return mostrar("Escribe un correo institucional que termine en @minedu.gob.pe.", false);
+  const b = $("#correo-enviar"); b.disabled = true; b.textContent = "Enviando…";
+  try {
+    const r = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/enviar-sector`, {
+      method: "POST",
+      headers: { apikey: CONFIG.SUPABASE_KEY, Authorization: `Bearer ${CONFIG.SUPABASE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ correo }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d.ok) { guardar("upp_correo", correo); mostrar(`¡Listo! 🥒 Te envié el enlace a ${correo}. Revisa tu bandeja (y la carpeta de spam).`, true); }
+    else mostrar(d.error || "No se pudo enviar el correo. Inténtalo más tarde.", false);
+  } catch (_) {
+    mostrar("No se pudo conectar con el servicio de correo. Inténtalo más tarde.", false);
+  } finally { b.disabled = false; b.textContent = "Enviar a mi correo"; }
+}
+$("#correo-enviar").addEventListener("click", enviarCorreo);
+$("#correo-txt").addEventListener("keydown", (e) => { if (e.key === "Enter") enviarCorreo(); });
+$("#correo-cerrar").addEventListener("click", () => $("#dlg-correo").close());
 
 // ------------------------------------------------------------------ chat de UPPepino
 const chat = { region: null, nivel: null, iniciado: false };
@@ -730,6 +768,7 @@ function menuPrincipal() {
     ["📊 ¿Cómo vamos?", () => responder(() => medidaChat("av"))],
     ["🏛️ Nivel de gobierno", elegirNivelChat],
     ["🧾 Reporte de seguimiento", () => responder(() => ejecutarIntencion("reporte"))],
+    ["📧 Recibir la data del Sector por correo", () => { burbuja("¡Claro! Escribe tu correo institucional en la ventana. 🥒"); abrirCorreo(); }],
   ]);
   const pop = (aprende.saber.populares || []).filter((p) => p.v >= 2).slice(0, 4);
   if (pop.length) {
@@ -862,6 +901,9 @@ async function preguntaLibre(txt) {
   if (sabido && !sabido.i.startsWith("m:") && !entidad) { ok(sabido.i); return ejecutarIntencion(sabido.i, anio); }
   if (/alerta|riesgo|rojo|bajo avance|peor/.test(q) && !entidad) { ok("alertas"); return alertasChat(); }
   if (/ranking|mejor|mayor avance|menor avance/.test(q) && !entidad) { ok("ranking"); return rankingChat(); }
+  if (/\b(correo|email|mail|enviame|envia|mandame|descargar|excel|archivo)\b/.test(q) && !entidad) {
+    burbuja("📧 Te puedo enviar el enlace del último Excel del Sector a tu correo institucional. Escríbelo en la ventana."); return abrirCorreo();
+  }
   if (/reporte|informe|formato/.test(q) && !entidad && !medida) { ok("reporte"); return ejecutarIntencion("reporte"); }
   if (entidad) return entidadChat(entidad, medida ? medida[0] : "av", anio);
   if (medida) { ok("m:" + medida[0]); return medidaChat(medida[0], anio); }

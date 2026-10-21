@@ -239,6 +239,15 @@ select.chip-nivel option { color: #1C1917; background: #fff; }
 .niveles .segm button { color: #4A403B; }
 .filtros-org { margin-top: -8px; align-items: center; }
 .filtros-org .org-et { font-weight: 800; font-size: .8rem; color: var(--granate); }
+.org-quitar { border: 1px solid var(--rojo); background: #fff; color: var(--granate); border-radius: 12px; padding: 8px 12px;
+  font-weight: 700; font-size: .8rem; cursor: pointer; }
+.org-quitar:hover { background: var(--granate); color: #fff; }
+.org-aviso { margin: -6px 0 16px; padding: 10px 14px; border-radius: 12px; background: #FFF4D6; color: #5B4300; font-size: .85rem; }
+.org-ruta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; font-size: .85rem; }
+.org-ruta button { border: 0; background: none; color: var(--granate); font-weight: 700; cursor: pointer; padding: 2px 4px; }
+.org-ruta button:hover { text-decoration: underline; }
+.org-ruta .org-filtrar { margin-left: auto; border: 1px solid var(--borde); background: #fff; border-radius: 10px; padding: 6px 10px; }
+.org-mas { color: var(--granate); font-weight: 800; }
 .filtros-org .sel { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 @media (max-width: 700px) { .filtros.filtros-org .sel { flex: 1 1 100%; width: 100%; } }
 .sel-nivel { border-color: var(--rojo) !important; color: var(--granate); }

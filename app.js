@@ -126,7 +126,10 @@ function filtrosOrg() {
     ${ofs.length ? `<select id="f-ofi" class="sel" aria-label="Oficina">${op("", "Todas las oficinas", ofi)}${ofs.map((o) => op(o, o, ofi)).join("")}</select>` : ""}
     ${ccs.length > 1 ? `<select id="f-cc" class="sel" aria-label="Centro de costo">${op("", "Todos los centros de costo", cc)}${
       ccs.map((x) => op(x.cc, x.ab && x.ab.toUpperCase() !== x.cc.toUpperCase() ? `${x.ab} · ${x.cc}` : x.cc, cc)).join("")}</select>` : ""}
-  </div>`;
+    ${orgActivo() ? `<button type="button" id="f-org-quitar" class="org-quitar" title="Volver a ver todo">✕ Quitar filtro MINEDU</button>` : ""}
+  </div>
+  ${orgActivo() ? `<div class="org-aviso">🔎 Estás viendo solo <b>${esc(nombreOrg())}</b> (MINEDU). Por eso los pliegos, unidades ejecutoras y montos
+    corresponden solo a esa parte. Pulsa <b>✕ Quitar filtro MINEDU</b> para ver todo.</div>` : ""}`;
 }
 function aplicarOrg(org) {
   estado.org = { dep: "", ofi: "", cc: "", ...org };
@@ -138,33 +141,59 @@ function cajaOrg(filas, id) {
   if (!hayOrg()) return "";
   return `<div class="caja" id="${id}"><div class="caja-cab"><h2>🏢 MINEDU: avance por dependencia, oficina y centro de costo</h2>
     ${segmentado(id + "-s", [["dep", "Dependencia"], ["of", "Oficina"], ["cc", "Centro de costo"]],
-      estado.org.cc ? "cc" : estado.org.ofi ? "cc" : estado.org.dep ? "of" : "dep")}</div><div id="${id}-t"></div>
-    <p class="nota">Pliego 010, según la tabla de centros de costo del MINEDU. Las metas que no figuran en ella van como «Sin asignar». Toque una fila para filtrar.</p></div>`;
+      estado.org.ofi || estado.org.cc ? "cc" : estado.org.dep ? "of" : "dep")}</div>
+    <div class="org-ruta" id="${id}-r"></div><div id="${id}-t"></div>
+    <p class="nota">Pliego 010, según la tabla de centros de costo del MINEDU. Las metas que no figuran en ella van como «Sin asignar».
+      Toque una dependencia para ver sus oficinas, y una oficina para ver sus centros de costo.</p></div>`;
 }
+// la caja baja de nivel por su cuenta (no cambia el filtro del panel); el botón «Filtrar el panel» sí lo aplica
 function conectarCajaOrg(filas, id) {
   if (!$("#" + id)) return;
   const porC = new Map(estado.cat.map((x) => [x.c, x]));
   const delPliego = filas.filter((f) => f.c && porC.has(f.c));
+  let ruta = { dep: "", of: "" };
   const pinta = (nivel) => {
+    const base = delPliego.filter((f) => { const x = porC.get(f.c); return (!ruta.dep || x.dep === ruta.dep) && (!ruta.of || x.of === ruta.of); });
     const clave = { dep: "dep", of: "of", cc: "cc" }[nivel];
-    const grupos = agrupar(delPliego.map((f) => ({ ...f, _k: porC.get(f.c)[clave], _x: porC.get(f.c) })), "_k")
+    const grupos = agrupar(base.map((f) => ({ ...f, _k: porC.get(f.c)[clave], _x: porC.get(f.c) })), "_k")
       .filter((g) => Math.abs(g.pim) > 0.5).sort((a, b) => b.pim - a.pim)
       .map((g) => ({ ...g, dep: g.filas[0]._x.dep, of: g.filas[0]._x.of, ab: g.filas[0]._x.ab }));
+    const sub = (f) => (nivel === "of" && !ruta.dep ? f.dep : nivel === "cc" && !ruta.of ? f.of + (ruta.dep ? "" : " · " + f.dep) : "");
     const cols = [{ t: { dep: "Dependencia", of: "Oficina", cc: "Centro de costo" }[nivel], k: "k",
       f: (f) => esc(nivel === "cc" && f.ab && f.ab.toUpperCase() !== String(f.k).toUpperCase() ? `${f.ab} · ${f.k}` : f.k) +
-        (nivel !== "dep" && f.dep ? `<br><small style="color:#6B6460">${esc(nivel === "cc" ? f.of + " · " + f.dep : f.dep)}</small>` : "") }];
+        (nivel !== "cc" ? " <span class='org-mas'>›</span>" : "") +
+        (sub(f) ? `<br><small style="color:#6B6460">${esc(sub(f))}</small>` : "") }];
     const t = tabla([...cols,
       { t: "PIM", k: "pim", num: true, f: (f) => mill(f.pim) },
       { t: "Devengado", k: "dev", num: true, f: (f) => mill(f.dev) },
       colAvance,
       { t: "Pendiente", k: "pend", num: true, f: (f) => mill(f.pim - f.dev), orden: (f) => f.pim - f.dev },
-    ], grupos, { id: id + "-tabla", total: grupos.length > 1 ? { k: "TOTAL", ...sumar(delPliego) } : null,
-      alClic: (f) => aplicarOrg(nivel === "dep" ? { dep: f.k } : nivel === "of" ? { dep: f.dep, ofi: f.k } : { dep: f.dep, ofi: f.of, cc: f.k }) });
+    ], grupos, { id: id + "-tabla", total: grupos.length > 1 ? { k: "TOTAL", ...sumar(base) } : null,
+      alClic: nivel === "cc" ? null : (f) => {
+        ruta = nivel === "dep" ? { dep: f.k, of: "" } : { dep: f.dep, of: f.k };
+        marcar(nivel === "dep" ? "of" : "cc");
+      } });
     $(`#${id}-t`).innerHTML = grupos.length ? t.html : `<p class="vacio">Sin información del pliego 010 en este ámbito.</p>`;
     t.conectar($(`#${id}-t`));
+    // migas: Todo › dependencia › oficina, y botón para filtrar todo el panel por lo elegido
+    const migas = [`<button type="button" data-n="0">Todo el MINEDU</button>`];
+    if (ruta.dep) migas.push(`<button type="button" data-n="1">${esc(ruta.dep)}</button>`);
+    if (ruta.of) migas.push(`<button type="button" data-n="2">${esc(ruta.of)}</button>`);
+    $(`#${id}-r`).innerHTML = ruta.dep ? migas.join(" › ") +
+      ` <button type="button" class="org-filtrar">🔎 Filtrar todo el panel por ${esc(ruta.of || ruta.dep)}</button>` : "";
+    $$(`#${id}-r button[data-n]`).forEach((b) => b.addEventListener("click", () => {
+      const n = +b.dataset.n;
+      ruta = n === 0 ? { dep: "", of: "" } : n === 1 ? { dep: ruta.dep, of: "" } : ruta;
+      marcar(n === 0 ? "dep" : n === 1 ? "of" : "cc");
+    }));
+    $(`#${id}-r .org-filtrar`)?.addEventListener("click", () => aplicarOrg({ dep: ruta.dep, ofi: ruta.of }));
+  };
+  const marcar = (nivel) => {
+    $$(`#${id}-s button`).forEach((x) => x.classList.toggle("activo", x.dataset.v === nivel));
+    pinta(nivel);
   };
   pinta($(`#${id}-s .activo`)?.dataset.v || "dep");
-  alSegmento(id + "-s", pinta);
+  alSegmento(id + "-s", (v) => { ruta = { dep: "", of: "" }; pinta(v); });
 }
 
 function sumar(filas) {
@@ -276,6 +305,7 @@ function conectarFiltros() {
   $("#f-dep")?.addEventListener("change", (e) => aplicarOrg({ dep: e.target.value }));
   $("#f-ofi")?.addEventListener("change", (e) => aplicarOrg({ dep: estado.org.dep, ofi: e.target.value }));
   $("#f-cc")?.addEventListener("change", (e) => aplicarOrg({ dep: estado.org.dep, ofi: estado.org.ofi, cc: e.target.value }));
+  $("#f-org-quitar")?.addEventListener("click", () => aplicarOrg({}));
 }
 // texto corto para títulos: "Gobiernos Regionales", "Sector Educación"…
 const quienNivel = () => (nombreOrg() ? "MINEDU · " + nombreOrg()

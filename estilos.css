@@ -237,6 +237,10 @@ select.chip-nivel option { color: #1C1917; background: #fff; }
 .niveles > span { font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #F3D9D2; }
 .niveles .segm { background: rgba(255,255,255,.92); }
 .niveles .segm button { color: #4A403B; }
+.filtros-org { margin-top: -8px; align-items: center; }
+.filtros-org .org-et { font-weight: 800; font-size: .8rem; color: var(--granate); }
+.filtros-org .sel { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+@media (max-width: 700px) { .filtros.filtros-org .sel { flex: 1 1 100%; width: 100%; } }
 .sel-nivel { border-color: var(--rojo) !important; color: var(--granate); }
 @media (max-width: 1100px) { select.chip-nivel { display: none; } }
 @media (max-width: 600px) {

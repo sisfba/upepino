@@ -25,6 +25,8 @@ const estado = {
   anios: [], cortes: {}, anio: null, region: leer("upepino_region") ?? null,
   nivel: ["GN", "GR", "GL"].includes(leer("upepino_nivel")) ? leer("upepino_nivel") : "",
   datos: new Map(), geo: null, graficos: [], grupo: "", pliegoSel: null, rep: { p: "", u: "" }, reportes: new Map(),
+  // MINEDU (pliego 010): dependencia > oficina > centro de costo (por nombre; el número cc cambia cada año)
+  org: { dep: "", ofi: "", cc: "" }, centros: new Map(), cat: [],
 };
 
 // ------------------------------------------------------------------ utilidades
@@ -79,6 +81,91 @@ function textoCorte(anio = estado.anio, nivel = estado.nivel) {
 }
 const ultimoCorte = (anio = estado.anio) => cortesDe(anio).map((c) => c.corte).sort().pop();
 const enRegion = (filas, region = estado.region) => (region ? filas.filter((f) => f.d === region) : filas);
+
+// ------------------------------------------------------------------ MINEDU: dependencia, oficina y centro de costo
+const SIN_ASIGNAR = "Sin asignar";
+async function centros(anio = estado.anio) {
+  if (!estado.centros.has(anio)) {
+    const p = rpc("pub_centros", { p_anio: anio }).catch(() => []);   // si la nube aún no lo tiene, sin filtros
+    estado.centros.set(anio, p);
+  }
+  return estado.centros.get(anio);
+}
+const hayOrg = () => estado.cat.length > 1 && (estado.nivel === "" || estado.nivel === "GN");
+const orgActivo = () => hayOrg() && !!(estado.org.dep || estado.org.ofi || estado.org.cc);
+// números (cc) de los centros de costo elegidos en el catálogo de ese año; null = sin filtro
+function ccElegidos(cat = estado.cat) {
+  if (!orgActivo()) return null;
+  const { dep, ofi, cc } = estado.org;
+  return cat.filter((x) => (cc ? x.cc === cc : ofi ? x.of === ofi : x.dep === dep)).map((x) => x.c);
+}
+async function enOrg(filas, anio = estado.anio) {
+  if (!orgActivo()) return filas;
+  const ids = new Set(ccElegidos(await centros(anio)));
+  return filas.filter((f) => ids.has(f.c));
+}
+async function prepararOrg() {
+  estado.cat = await centros(estado.anio);
+  const { dep, ofi, cc } = estado.org;
+  if (dep && !estado.cat.some((x) => x.dep === dep)) estado.org = { dep: "", ofi: "", cc: "" };
+  else if (ofi && !estado.cat.some((x) => x.of === ofi)) estado.org = { dep, ofi: "", cc: "" };
+  else if (cc && !estado.cat.some((x) => x.cc === cc)) estado.org = { dep, ofi, cc: "" };
+}
+const nombreOrg = () => (orgActivo() ? estado.org.cc || estado.org.ofi || estado.org.dep : "");
+const ordenEs = (a, b) => a.localeCompare(b, "es");
+function filtrosOrg() {
+  if (!hayOrg()) return "";
+  const { dep, ofi, cc } = estado.org;
+  const deps = [...new Set(estado.cat.map((x) => x.dep))].sort((a, b) => (a === SIN_ASIGNAR) - (b === SIN_ASIGNAR) || ordenEs(a, b));
+  const ofs = dep && dep !== SIN_ASIGNAR ? [...new Set(estado.cat.filter((x) => x.dep === dep).map((x) => x.of))].sort(ordenEs) : [];
+  const ccs = ofi ? estado.cat.filter((x) => x.of === ofi) : [];
+  const op = (v, t, sel) => `<option value="${esc(v)}" ${v === sel ? "selected" : ""}>${esc(t)}</option>`;
+  return `<div class="filtros filtros-org" title="Solo pliego 010 MINEDU, según la tabla de centros de costo">
+    <span class="org-et">🏢 MINEDU</span>
+    <select id="f-dep" class="sel" aria-label="Dependencia">${op("", "Todas las dependencias", dep)}${deps.map((d) => op(d, d, dep)).join("")}</select>
+    ${ofs.length ? `<select id="f-ofi" class="sel" aria-label="Oficina">${op("", "Todas las oficinas", ofi)}${ofs.map((o) => op(o, o, ofi)).join("")}</select>` : ""}
+    ${ccs.length > 1 ? `<select id="f-cc" class="sel" aria-label="Centro de costo">${op("", "Todos los centros de costo", cc)}${
+      ccs.map((x) => op(x.cc, x.ab && x.ab.toUpperCase() !== x.cc.toUpperCase() ? `${x.ab} · ${x.cc}` : x.cc, cc)).join("")}</select>` : ""}
+  </div>`;
+}
+function aplicarOrg(org) {
+  estado.org = { dep: "", ofi: "", cc: "", ...org };
+  estado.rep = { p: "", u: "" }; estado.pliegoSel = null;
+  enrutar(false);
+}
+// avance por dependencia / oficina / centro de costo de las filas del pliego 010
+function cajaOrg(filas, id) {
+  if (!hayOrg()) return "";
+  return `<div class="caja" id="${id}"><div class="caja-cab"><h2>🏢 MINEDU: avance por dependencia, oficina y centro de costo</h2>
+    ${segmentado(id + "-s", [["dep", "Dependencia"], ["of", "Oficina"], ["cc", "Centro de costo"]],
+      estado.org.cc ? "cc" : estado.org.ofi ? "cc" : estado.org.dep ? "of" : "dep")}</div><div id="${id}-t"></div>
+    <p class="nota">Pliego 010, según la tabla de centros de costo del MINEDU. Las metas que no figuran en ella van como «Sin asignar». Toque una fila para filtrar.</p></div>`;
+}
+function conectarCajaOrg(filas, id) {
+  if (!$("#" + id)) return;
+  const porC = new Map(estado.cat.map((x) => [x.c, x]));
+  const delPliego = filas.filter((f) => f.c && porC.has(f.c));
+  const pinta = (nivel) => {
+    const clave = { dep: "dep", of: "of", cc: "cc" }[nivel];
+    const grupos = agrupar(delPliego.map((f) => ({ ...f, _k: porC.get(f.c)[clave], _x: porC.get(f.c) })), "_k")
+      .filter((g) => Math.abs(g.pim) > 0.5).sort((a, b) => b.pim - a.pim)
+      .map((g) => ({ ...g, dep: g.filas[0]._x.dep, of: g.filas[0]._x.of, ab: g.filas[0]._x.ab }));
+    const cols = [{ t: { dep: "Dependencia", of: "Oficina", cc: "Centro de costo" }[nivel], k: "k",
+      f: (f) => esc(nivel === "cc" && f.ab && f.ab.toUpperCase() !== String(f.k).toUpperCase() ? `${f.ab} · ${f.k}` : f.k) +
+        (nivel !== "dep" && f.dep ? `<br><small style="color:#6B6460">${esc(nivel === "cc" ? f.of + " · " + f.dep : f.dep)}</small>` : "") }];
+    const t = tabla([...cols,
+      { t: "PIM", k: "pim", num: true, f: (f) => mill(f.pim) },
+      { t: "Devengado", k: "dev", num: true, f: (f) => mill(f.dev) },
+      colAvance,
+      { t: "Pendiente", k: "pend", num: true, f: (f) => mill(f.pim - f.dev), orden: (f) => f.pim - f.dev },
+    ], grupos, { id: id + "-tabla", total: grupos.length > 1 ? { k: "TOTAL", ...sumar(delPliego) } : null,
+      alClic: (f) => aplicarOrg(nivel === "dep" ? { dep: f.k } : nivel === "of" ? { dep: f.dep, ofi: f.k } : { dep: f.dep, ofi: f.of, cc: f.k }) });
+    $(`#${id}-t`).innerHTML = grupos.length ? t.html : `<p class="vacio">Sin información del pliego 010 en este ámbito.</p>`;
+    t.conectar($(`#${id}-t`));
+  };
+  pinta($(`#${id}-s .activo`)?.dataset.v || "dep");
+  alSegmento(id + "-s", pinta);
+}
 
 function sumar(filas) {
   const t = { pia: 0, pim: 0, cer: 0, com: 0, dev: 0, gir: 0, m: Array(12).fill(0) };
@@ -179,16 +266,20 @@ function cabecera(titulo, icono, migas) {
       <select id="f-nivel" class="sel sel-nivel" aria-label="Nivel de gobierno">${opcionesNivel()}</select>
       <select id="f-anio" class="sel" aria-label="Año">${estado.anios.map((a) => `<option ${a === estado.anio ? "selected" : ""}>${a}</option>`).join("")}</select>
       <select id="f-region" class="sel" aria-label="Departamento"></select>
-    </div>`;
+    </div>${filtrosOrg()}`;
 }
 function conectarFiltros() {
   opcionesRegion($("#f-region"), estado.region);
   $("#f-region").addEventListener("change", (e) => aplicarRegion(e.target.value));
   $("#f-anio").addEventListener("change", (e) => { estado.anio = +e.target.value; enrutar(false); });
   $("#f-nivel").addEventListener("change", (e) => aplicarNivel(e.target.value));
+  $("#f-dep")?.addEventListener("change", (e) => aplicarOrg({ dep: e.target.value }));
+  $("#f-ofi")?.addEventListener("change", (e) => aplicarOrg({ dep: estado.org.dep, ofi: e.target.value }));
+  $("#f-cc")?.addEventListener("change", (e) => aplicarOrg({ dep: estado.org.dep, ofi: estado.org.ofi, cc: e.target.value }));
 }
 // texto corto para títulos: "Gobiernos Regionales", "Sector Educación"…
-const quienNivel = () => (estado.nivel ? NIVEL_CORTO[estado.nivel].replace("Gob.", "Gobiernos") : "Educación (todos los niveles)");
+const quienNivel = () => (nombreOrg() ? "MINEDU · " + nombreOrg()
+  : estado.nivel ? NIVEL_CORTO[estado.nivel].replace("Gob.", "Gobiernos") : "Educación (todos los niveles)");
 
 function kpis(t) {
   const av = div(t.dev, t.pim);
@@ -337,7 +428,8 @@ const tarjeta = (href, ico, t, d) => `<a class="tp" href="${href}"><div class="i
 
 async function vResumen() {
   cargando();
-  const todas = await datos(estado.anio);
+  await prepararOrg();
+  const todas = await enOrg(await datos(estado.anio));
   const filas = enRegion(todas);
   const t = sumar(filas);
   $("#vista").innerHTML = `<div class="cont">
@@ -355,8 +447,9 @@ async function vResumen() {
       <div class="caja"><div class="caja-cab"><h2>📈 Avance acumulado del devengado</h2></div>
         <div class="grafico"><canvas id="g-curva"></canvas></div>
         <p class="nota">Devengado acumulado entre el PIM de cada año. El año en curso llega hasta el mes de corte.</p></div>
-    </div></div>`;
+    </div>${cajaOrg(filas, "c-org")}</div>`;
   conectarFiltros();
+  conectarCajaOrg(filas, "c-org");
   const porDep = new Map(agrupar(todas, "d").map((x) => [x.k, x]));
   await dibujarMapa($("#mapa"), porDep, "pim");
   $("#m-medida").addEventListener("change", (e) => dibujarMapa($("#mapa"), porDep, e.target.value));
@@ -384,7 +477,7 @@ async function vResumen() {
 
 async function curva(canvas) {
   const anios = estado.anios.filter((a) => a <= estado.anio).slice(0, 3).reverse();
-  const series = await Promise.all(anios.map(async (a) => ({ a, t: sumar(enRegion(await datos(a))) })));
+  const series = await Promise.all(anios.map(async (a) => ({ a, t: sumar(enRegion(await enOrg(await datos(a), a))) })));
   const corte = ultimoCorte();
   const mesCorte = corte ? +corte.slice(5, 7) : 12;
   estado.graficos.push(new Chart(canvas, {
@@ -408,7 +501,8 @@ async function curva(canvas) {
 
 async function vPliegos() {
   cargando();
-  let filas = enRegion(await datos(estado.anio));
+  await prepararOrg();
+  let filas = enRegion(await enOrg(await datos(estado.anio)));
   if (estado.nivel !== "GN") estado.grupo = "";
   const filtroGrupo = (f) => (estado.grupo === "U" ? f.p.startsWith("5") : estado.grupo === "M" ? !f.p.startsWith("5") : true);
   filas = filas.filter(filtroGrupo);
@@ -424,8 +518,10 @@ async function vPliegos() {
       <div class="caja"><div class="caja-cab"><h2>📊 ${sel ? "Genéricas de " + esc(sel.n) : "Avance de los 12 pliegos con mayor PIM"}</h2></div><div id="b-pl"></div></div>
     </div>
     <div class="caja" id="caja-ue"><div class="caja-cab"><h2>🏫 ${sel ? "Unidades ejecutoras de " + esc(sel.n) : "Elija un pliego para ver sus unidades ejecutoras"}</h2></div><div id="t-ue"></div></div>
+    ${sel && sel.k === "010" ? cajaOrg(sel.filas, "p-org") : ""}
   </div>`;
   conectarFiltros();
+  if (sel && sel.k === "010") conectarCajaOrg(sel.filas, "p-org");
   if (estado.nivel === "GN") alSegmento("s-grupo", (v) => { estado.grupo = v; estado.pliegoSel = null; enrutar(false); });
   const total = { n: "TOTAL", ...sumar(filas) };
   const tp = tabla([
@@ -460,7 +556,8 @@ async function vPliegos() {
 
 async function vAlertas() {
   cargando();
-  const filas = enRegion(await datos(estado.anio));
+  await prepararOrg();
+  const filas = enRegion(await enOrg(await datos(estado.anio)));
   const ues = agrupar(filas, "u", (f) => f.un).filter((x) => x.pim >= 1e6)
     .map((x) => ({ ...x, pl: x.filas[0].pn, av: div(x.dev, x.pim), pend: x.pim - x.dev }));
   const rojos = ues.filter((x) => x.av < 0.7), ambar = ues.filter((x) => x.av >= 0.7 && x.av < 0.8), verdes = ues.filter((x) => x.av >= 0.8);
@@ -551,7 +648,8 @@ async function datosReporte(q) {
 
 async function vReporte() {
   cargando();
-  const todas = enRegion(await datos(estado.anio));
+  await prepararOrg();
+  const todas = enRegion(await enOrg(await datos(estado.anio)));
   // listas de pliegos y UE del ámbito
   const pls = agrupar(todas, "p", (f) => f.pn).filter((x) => x.pim > 0.5).sort((a, b) => a.n.localeCompare(b.n));
   if (estado.rep.p && !pls.some((x) => x.k === estado.rep.p)) estado.rep = { p: "", u: "" };
@@ -560,7 +658,8 @@ async function vReporte() {
   if (estado.rep.u && !ues.some((x) => x.k === estado.rep.u)) estado.rep.u = "";
   const filas = estado.rep.u ? enPl.filter((f) => f.u === estado.rep.u) : enPl;
   const sel = estado.rep.u ? ues.find((x) => x.k === estado.rep.u) : estado.rep.p ? pls.find((x) => x.k === estado.rep.p) : null;
-  const titulo = sel ? sel.n : (estado.region ? nombreRegion() : "Todo el Perú") + " · " + quienNivel();
+  const titulo = (sel ? sel.n : (estado.region ? nombreRegion() : "Todo el Perú") + (nombreOrg() ? "" : " · " + quienNivel()))
+    + (nombreOrg() ? " · " + nombreOrg() : "");
   const gens = agrupar(filas, "g").filter((x) => Math.abs(x.pim) > 0.5 || Math.abs(x.dev) > 0.5)
     .sort((a, b) => a.k.localeCompare(b.k)).map((x) => calcular({ ...x, n: NOMBRE_GEN_REP(x.k) }));
   $("#vista").innerHTML = `<div class="cont">
@@ -599,7 +698,9 @@ async function vReporte() {
   guia(`<b>Reporte de seguimiento</b><br>Elige un pliego o una unidad ejecutora y pulsa <b>Descargar PDF</b>
     para guardarlo o imprimirlo.`);
   try {
-    const r = await datosReporte(paramsReporte(estado.nivel, estado.region, estado.rep.p, estado.rep.u));
+    const q = paramsReporte(estado.nivel, estado.region, estado.rep.p, estado.rep.u);
+    if (ccElegidos()) q.p_cc = ccElegidos();
+    const r = await datosReporte(q);
     if (!$("#rep-prog")) return;
     const prog = (r.prog || []).map((x) => calcular(x));
     $("#rep-prog").innerHTML = cuadroRep(prog, C_PEND, "CP/PP", (f) => `<span title="${esc(f.n)}">${esc(f.c)}</span>`, true) +
